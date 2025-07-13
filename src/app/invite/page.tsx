@@ -9,7 +9,25 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { RenderriLogo } from '@/components/icons';
 
-const VALID_INVITE_CODE = 'RENDERRI_INVITE';
+const VALID_INVITE_CODES = [
+  'RENDERRI_INVITE',
+  'YbcGG',
+  'zVgdU',
+  '1vcHb',
+  'XqNPg',
+  'bgnGL',
+  'hHZde',
+  'Rx63e',
+  'yAsuF',
+  'qirgm',
+  '4DdnP',
+  'hu7bE',
+  'NdRN5',
+  'eirLm',
+  '8gIEV',
+  'IIy87'
+];
+
 
 export default function InvitePage() {
   const [inviteCode, setInviteCode] = useState('');
@@ -25,7 +43,7 @@ export default function InvitePage() {
 
   const handleContinue = () => {
     setIsLoading(true);
-    if (inviteCode === VALID_INVITE_CODE) {
+    if (VALID_INVITE_CODES.includes(inviteCode)) {
       localStorage.setItem('hasInvite', 'true');
       toast({
         title: 'Success!',
