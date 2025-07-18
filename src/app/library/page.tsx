@@ -1,3 +1,4 @@
+
 // src/app/library/page.tsx
 "use client";
 
@@ -11,10 +12,82 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, ArrowLeft, ImageOff } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageOff, Download, Share2 } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
+import { useToast } from '@/hooks/use-toast';
 
 function ImageGrid({ images, isLoading }: { images: string[]; isLoading: boolean }) {
+  const { toast } = useToast();
+  
+  const handleDownload = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `renderri-image-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the image. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleShare = async (imageUrl: string) => {
+    const shareText = "hey! i have generated a image using renderri a free to use ai image editor , upscaler and generator!";
+    if (navigator.share) {
+      try {
+         const response = await fetch(imageUrl);
+         const blob = await response.blob();
+         const file = new File([blob], `renderri-image.png`, { type: blob.type });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: 'Image from Renderri',
+                text: shareText,
+                files: [file],
+            });
+        } else {
+             await navigator.share({
+                title: 'Image from Renderri',
+                text: shareText,
+                url: imageUrl,
+            });
+        }
+      } catch (error) {
+        console.error('Sharing failed:', error);
+        toast({
+            title: "Sharing not available",
+            description: "Could not share the image using the native share dialog.",
+            variant: 'destructive'
+        });
+      }
+    } else {
+        try {
+            await navigator.clipboard.writeText(`${shareText}\n${imageUrl}`);
+            toast({
+                title: "Link Copied!",
+                description: "The share link has been copied to your clipboard.",
+            });
+        } catch (error) {
+             toast({
+                title: "Sharing not available",
+                description: "Your browser does not support the Web Share API or clipboard access.",
+                variant: 'destructive'
+            });
+        }
+    }
+  };
+
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -38,7 +111,7 @@ function ImageGrid({ images, isLoading }: { images: string[]; isLoading: boolean
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {images.map((url) => (
-        <Card key={url} className="overflow-hidden group">
+        <Card key={url} className="overflow-hidden group relative">
           <div className="aspect-square relative w-full">
             <Image
               src={url}
@@ -47,6 +120,16 @@ function ImageGrid({ images, isLoading }: { images: string[]; isLoading: boolean
               className="object-cover transition-transform group-hover:scale-105"
               sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
             />
+          </div>
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button variant="outline" size="icon" onClick={() => handleDownload(url)}>
+              <Download className="h-5 w-5" />
+              <span className="sr-only">Download</span>
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => handleShare(url)}>
+              <Share2 className="h-5 w-5" />
+              <span className="sr-only">Share</span>
+            </Button>
           </div>
         </Card>
       ))}
