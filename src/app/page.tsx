@@ -1,3 +1,4 @@
+
 // src/app/page.tsx
 "use client";
 
@@ -34,21 +35,12 @@ import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
 
-const styles = [
-    { name: 'Default', url: 'https://placehold.co/100x100.png', hint: 'default' },
-    { name: 'Panda', url: 'https://placehold.co/100x100.png', hint: 'panda' },
-    { name: 'Fantasy', url: 'https://placehold.co/100x100.png', hint: 'fantasy' },
-    { name: 'Sci-Fi', url: 'https://placehold.co/100x100.png', hint: 'sci-fi' },
-    { name: 'Anime', url: 'https://placehold.co/100x100.png', hint: 'anime' },
-];
-
 export default function HomePage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { setTheme, theme } = useTheme();
   const { toast } = useToast();
   
   const [prompt, setPrompt] = useState('');
-  const [selectedStyle, setSelectedStyle] = useState(styles[0]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -96,7 +88,7 @@ export default function HomePage() {
       setGeneratedImage(null);
       try {
           const result = await generateImage({
-              prompt: `${prompt}, in the style of ${selectedStyle.name}`,
+              prompt: prompt,
               photoUrl: uploadedImageUrl ?? undefined,
               userId: user.uid,
               userEmail: user.email,
@@ -228,22 +220,6 @@ export default function HomePage() {
                         <TabsTrigger value="quality" disabled={isLoading}>Quality</TabsTrigger>
                     </TabsList>
                 </Tabs>
-            </div>
-
-            <div className="space-y-3">
-                <h3 className="font-semibold">Choose a style</h3>
-                <div className="grid grid-cols-5 gap-2">
-                    {styles.map(style => (
-                        <Card 
-                            key={style.name} 
-                            onClick={() => !isLoading && setSelectedStyle(style)}
-                            className={`cursor-pointer overflow-hidden ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${selectedStyle.name === style.name ? 'ring-2 ring-primary' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            <Image src={style.url} alt={style.name} width={100} height={100} className="aspect-square object-cover" data-ai-hint={style.hint}/>
-                        </Card>
-                    ))}
-                </div>
-                 <Button variant="link" className="p-0 text-primary" disabled={isLoading}>View all +100 styles</Button>
             </div>
           </div>
 
