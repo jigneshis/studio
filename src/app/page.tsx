@@ -6,7 +6,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { generateImage } from '@/ai/flows/generate-image';
 import { magicEdit } from '@/ai/flows/magic-edit-flow';
+import { removeBackground } from '@/ai/flows/remove-background-flow';
 import { uploadImage as uploadImageToSupabase } from '@/services/storage';
+import { applyMaskToImage } from '@/lib/image-utils';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -93,13 +95,27 @@ export default function HomePage() {
   const [numVariations, setNumVariations] = useState(4);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUsageDialogOpen, setIsUsageDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [brushRadius, setBrushRadius] = useState(20);
-  const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
   const editorCanvasRef = useRef<ImageEditorCanvasRef>(null);
+
+  const resetState = () => {
+    setGeneratedImages([]);
+    setUploadedImageUrl(null);
+    setProcessedImageUrl(null);
+    if (editorCanvasRef.current) {
+        editorCanvasRef.current.clear();
+    }
+  }
+
+  useEffect(() => {
+    resetState();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,23 +125,20 @@ export default function HomePage() {
     }
 
     setIsUploading(true);
-    setUploadedImageUrl(null);
-    setGeneratedImages([]);
-    setEditedImageUrl(null);
+    resetState();
 
     try {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onloadend = async () => {
         const base64String = reader.result as string;
-        const publicUrl = await uploadImageToSupabase(base64String, 'chat-attachments', user.email!);
-        setUploadedImageUrl(publicUrl);
-        setGeneratedImages([]);
-        toast({ title: "Image Uploaded", description: "Your image is ready to be used." });
+        // No need to upload to supabase first, just use the data URI
+        setUploadedImageUrl(base64String);
+        toast({ title: "Image Ready", description: "Your image is ready to be used." });
       };
     } catch (error) {
-      console.error('Upload failed:', error);
-      toast({ title: "Upload Failed", description: "Could not upload your image. Please try again.", variant: "destructive" });
+      console.error('File read failed:', error);
+      toast({ title: "File Read Failed", description: "Could not read your image file. Please try again.", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
@@ -142,13 +155,19 @@ export default function HomePage() {
       }
       setIsGenerating(true);
       setGeneratedImages([]);
-      setEditedImageUrl(null);
+      setProcessedImageUrl(null);
 
       try {
+          // If there's an uploaded image, we need its public URL first
+          let publicPhotoUrl: string | undefined = undefined;
+          if (uploadedImageUrl) {
+            publicPhotoUrl = await uploadImageToSupabase(uploadedImageUrl, 'chat-attachments', user.email);
+          }
+          
           const result = await generateImage({
               prompt: prompt,
               negativePrompt: negativePrompt,
-              photoUrl: uploadedImageUrl ?? undefined,
+              photoUrl: publicPhotoUrl,
               userId: user.uid,
               userEmail: user.email,
               numVariations: numVariations
@@ -174,7 +193,7 @@ export default function HomePage() {
     }
 
     setIsGenerating(true);
-    setEditedImageUrl(null);
+    setProcessedImageUrl(null);
 
     try {
         const maskDataUri = await editorCanvasRef.current.getMaskAsDataURI();
@@ -192,7 +211,7 @@ export default function HomePage() {
             userEmail: user.email,
         });
 
-        setEditedImageUrl(result.imageUrl);
+        setProcessedImageUrl(result.imageUrl);
         setUploadedImageUrl(result.imageUrl); // Replace original with edited one for further edits
         editorCanvasRef.current.clear();
     } catch (error) {
@@ -201,7 +220,35 @@ export default function HomePage() {
     } finally {
         setIsGenerating(false);
     }
-};
+  };
+
+  const handleBackgroundRemoval = async () => {
+     if (!user?.email || !uploadedImageUrl) {
+        toast({ title: "Setup error", description: "An image must be uploaded first.", variant: "destructive" });
+        return;
+    }
+
+    setIsGenerating(true);
+    setProcessedImageUrl(null);
+
+    try {
+        const { maskDataUri } = await removeBackground({ photoDataUri: uploadedImageUrl });
+        
+        const finalImageUri = await applyMaskToImage(uploadedImageUrl, maskDataUri);
+        
+        const publicUrl = await uploadImageToSupabase(finalImageUri, 'generated-files', user.email);
+        setProcessedImageUrl(publicUrl);
+        setUploadedImageUrl(publicUrl);
+        toast({ title: "Background Removed!", description: "The background has been successfully removed." });
+
+    } catch (error) {
+        console.error("Background removal failed:", error);
+        toast({ title: "Background Removal Failed", description: "Could not remove the background. Please try again.", variant: "destructive" });
+    } finally {
+        setIsGenerating(false);
+    }
+  }
+
 
   const handleDownload = async (url: string) => {
     try {
@@ -240,6 +287,7 @@ export default function HomePage() {
   }
 
   const isLoading = isGenerating || isUploading;
+  const currentImage = processedImageUrl || uploadedImageUrl;
 
   const modeOptions = {
     generate: { label: "Generate", icon: <Sparkles className="mr-2 h-4 w-4" /> },
@@ -323,7 +371,7 @@ export default function HomePage() {
                 <DropdownMenuRadioItem value="edit">
                   <Wand2 className="mr-2 h-4 w-4" /> Magic Edit
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="background" disabled>
+                <DropdownMenuRadioItem value="background">
                    <Trash2 className="mr-2 h-4 w-4" /> BG Remove
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
@@ -331,91 +379,93 @@ export default function HomePage() {
           </DropdownMenu>
 
             
-            {/* Always visible controls */}
-            <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-lg font-semibold">{activeTab === 'edit' ? 'Describe your edit' : 'Create with a prompt'}</h2>
-                    {activeTab === 'generate' && (
-                        <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Surprise Me
-                        </Button>
-                    )}
-                </div>
-                <Textarea 
-                    placeholder={activeTab === 'edit' ? "e.g., 'add sunglasses'" : "Describe what you'd like to generate"}
-                    className="min-h-[100px] bg-card"
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    disabled={isLoading}
-                />
-            </div>
-            {activeTab !== 'edit' && (
+            {/* Common controls */}
+            {activeTab !== 'background' && (
               <div className="space-y-2">
-                  <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
+                  <div className="flex justify-between items-center">
+                      <h2 className="text-lg font-semibold">{activeTab === 'edit' ? 'Describe your edit' : 'Create with a prompt'}</h2>
+                      {activeTab === 'generate' && (
+                          <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              Surprise Me
+                          </Button>
+                      )}
+                  </div>
                   <Textarea 
-                      placeholder="e.g., blurry, extra limbs, deformed"
-                      className="min-h-[70px] bg-card"
-                      value={negativePrompt}
-                      onChange={(e) => setNegativePrompt(e.target.value)}
+                      placeholder={activeTab === 'edit' ? "e.g., 'add sunglasses'" : "Describe what you'd like to generate"}
+                      className="min-h-[100px] bg-card"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
                       disabled={isLoading}
                   />
               </div>
             )}
 
-
             {activeTab === 'generate' && (
-              <div className="flex flex-col gap-6">
-                <div className="space-y-3">
-                  <h3 className="font-semibold">Number of variations</h3>
-                   <Select
-                      value={String(numVariations)}
-                      onValueChange={(value) => setNumVariations(Number(value))}
-                      disabled={isLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select number of variations" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 Variation</SelectItem>
-                        <SelectItem value="2">2 Variations</SelectItem>
-                        <SelectItem value="3">3 Variations</SelectItem>
-                        <SelectItem value="4">4 Variations</SelectItem>
-                      </SelectContent>
-                    </Select>
+              <>
+                <div className="space-y-2">
+                    <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
+                    <Textarea 
+                        placeholder="e.g., blurry, extra limbs, deformed"
+                        className="min-h-[70px] bg-card"
+                        value={negativePrompt}
+                        onChange={(e) => setNegativePrompt(e.target.value)}
+                        disabled={isLoading}
+                    />
                 </div>
-                
-                <div className="flex flex-col gap-2">
-                    <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
-                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Generate ({numVariations} {numVariations > 1 ? 'variations' : 'variation'})
-                    </Button>
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
-                        Upload Reference Image
-                    </Button>
-                </div>
+                <div className="flex flex-col gap-6">
+                  <div className="space-y-3">
+                    <h3 className="font-semibold">Number of variations</h3>
+                     <Select
+                        value={String(numVariations)}
+                        onValueChange={(value) => setNumVariations(Number(value))}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select number of variations" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 Variation</SelectItem>
+                          <SelectItem value="2">2 Variations</SelectItem>
+                          <SelectItem value="3">3 Variations</SelectItem>
+                          <SelectItem value="4">4 Variations</SelectItem>
+                        </SelectContent>
+                      </Select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                      <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
+                          {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Generate ({numVariations} {numVariations > 1 ? 'variations' : 'variation'})
+                      </Button>
+                      <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                          {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                          Upload Reference Image
+                      </Button>
+                  </div>
 
-                <div className="space-y-3">
-                    <h3 className="font-semibold">Image quality</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button variant={ "outline"} disabled={isLoading}>Standard</Button>
-                        <Button variant={ "secondary"} disabled={isLoading}>HD</Button>
-                    </div>
+                  <div className="space-y-3">
+                      <h3 className="font-semibold">Image quality</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                          <Button variant={ "outline"} disabled={isLoading}>Standard</Button>
+                          <Button variant={ "secondary"} disabled={isLoading}>HD</Button>
+                      </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                      <h3 className="font-semibold">Preference</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                         <Button variant={"secondary"} disabled={isLoading}>Speed</Button>
+                         <Button variant={"outline"} disabled={isLoading}>Quality</Button>
+                      </div>
+                  </div>
                 </div>
-                
-                <div className="space-y-3">
-                    <h3 className="font-semibold">Preference</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                       <Button variant={"secondary"} disabled={isLoading}>Speed</Button>
-                       <Button variant={"outline"} disabled={isLoading}>Quality</Button>
-                    </div>
-                </div>
-              </div>
+              </>
             )}
+
             {activeTab === 'edit' && (
               <div className="flex flex-col gap-6">
-                {!uploadedImageUrl && (
+                {!currentImage && (
                     <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
                          <Wand2 className="h-12 w-12 text-muted-foreground mb-4" />
                          <h3 className="font-semibold mb-2">Start with an image</h3>
@@ -426,7 +476,7 @@ export default function HomePage() {
                         </Button>
                     </Card>
                 )}
-                {uploadedImageUrl && (
+                {currentImage && (
                     <>
                        <div className="space-y-3">
                             <h3 className="font-semibold">Brush size</h3>
@@ -457,9 +507,23 @@ export default function HomePage() {
             )}
             {activeTab === 'background' && (
               <div className="flex flex-col gap-6">
-                <Card className="h-96 flex items-center justify-center text-muted-foreground">
-                    Background Removal coming soon!
-                </Card>
+                 {!currentImage && (
+                    <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
+                         <Trash2 className="h-12 w-12 text-muted-foreground mb-4" />
+                         <h3 className="font-semibold mb-2">Start with an image</h3>
+                         <p className="text-sm text-muted-foreground mb-4">Upload an image to remove its background.</p>
+                         <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                            Upload Image
+                        </Button>
+                    </Card>
+                )}
+                {currentImage && (
+                  <Button onClick={handleBackgroundRemoval} disabled={isLoading}>
+                      {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                      Remove Background
+                  </Button>
+                )}
               </div>
             )}
 
@@ -480,27 +544,47 @@ export default function HomePage() {
                 {isLoading && (
                     <Card className="w-full aspect-square bg-card overflow-hidden flex flex-col items-center justify-center gap-4 text-muted-foreground">
                         <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                        <p>{isGenerating ? 'Generating...' : 'Uploading...'}</p>
+                        <p>{isGenerating ? 'Processing...' : 'Uploading...'}</p>
                     </Card>
                 )}
                 {!isLoading && activeTab === 'generate' && generatedImages.length > 0 && (
                     <ImageVariations images={generatedImages} onDownload={handleDownload} />
                 )}
-                {!isLoading && activeTab === 'generate' && uploadedImageUrl && generatedImages.length === 0 && (
-                    <Card className="w-full bg-card overflow-hidden">
-                       <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                {!isLoading && activeTab === 'generate' && currentImage && generatedImages.length === 0 && (
+                     <Card className="w-full bg-card overflow-hidden">
+                       <Image src={currentImage} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
                     </Card>
                 )}
                 
-                {!isLoading && activeTab === 'edit' && uploadedImageUrl && (
-                    <ImageEditorCanvas
-                        ref={editorCanvasRef}
-                        imageUrl={editedImageUrl || uploadedImageUrl}
-                        brushRadius={brushRadius}
-                    />
+                {!isLoading && (activeTab === 'edit' || activeTab === 'background') && currentImage && (
+                  <>
+                    {activeTab === 'edit' ? (
+                       <ImageEditorCanvas
+                          ref={editorCanvasRef}
+                          imageUrl={currentImage}
+                          brushRadius={brushRadius}
+                      />
+                    ) : (
+                       <Card className="w-full bg-card overflow-hidden">
+                         <Image src={currentImage} alt="Processed image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                      </Card>
+                    )}
+                    {processedImageUrl && (
+                      <div className="flex items-center justify-center gap-2 mt-4">
+                        <Button variant="default" onClick={() => handleDownload(processedImageUrl)}>
+                          <Download className="mr-2 h-4 w-4" /> Download
+                        </Button>
+                        <Button variant="secondary" asChild>
+                           <a href={processedImageUrl} target="_blank" rel="noopener noreferrer">
+                              <Eye className="mr-2 h-4 w-4" /> View Full Image
+                           </a>
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {!isLoading && generatedImages.length === 0 && !uploadedImageUrl && (
+                {!isLoading && generatedImages.length === 0 && !currentImage && (
                     <Card className="w-full aspect-square bg-card overflow-hidden flex items-center justify-center">
                        <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
                     </Card>
