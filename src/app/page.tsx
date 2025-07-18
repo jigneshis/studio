@@ -85,6 +85,8 @@ export default function HomePage() {
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [numVariations, setNumVariations] = useState(4);
+  const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>('standard');
+  const [preference, setPreference] = useState<'speed' | 'quality'>('quality');
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -142,7 +144,9 @@ export default function HomePage() {
               photoUrl: publicPhotoUrl,
               userId: user.uid,
               userEmail: user.email,
-              numVariations: numVariations
+              numVariations: numVariations,
+              quality: imageQuality,
+              preference: preference,
           });
           setGeneratedImages(result.imageUrls);
           if (uploadedImageUrl) setUploadedImageUrl(null);
@@ -311,16 +315,16 @@ export default function HomePage() {
                   <div className="space-y-3">
                       <h3 className="font-semibold">Image quality</h3>
                       <div className="grid grid-cols-2 gap-2">
-                          <Button variant={ "outline"} disabled={isLoading}>Standard</Button>
-                          <Button variant={ "secondary"} disabled={isLoading}>HD</Button>
+                          <Button variant={imageQuality === 'standard' ? "default" : "secondary"} disabled={isLoading} onClick={() => setImageQuality('standard')}>Standard</Button>
+                          <Button variant={imageQuality === 'hd' ? "default" : "secondary"} disabled={isLoading} onClick={() => setImageQuality('hd')}>HD</Button>
                       </div>
                   </div>
                   
                   <div className="space-y-3">
                       <h3 className="font-semibold">Preference</h3>
                       <div className="grid grid-cols-2 gap-2">
-                         <Button variant={"secondary"} disabled={isLoading}>Speed</Button>
-                         <Button variant={"outline"} disabled={isLoading}>Quality</Button>
+                         <Button variant={preference === 'speed' ? "default" : "secondary"} disabled={isLoading} onClick={() => setPreference('speed')}>Speed</Button>
+                         <Button variant={preference === 'quality' ? "default" : "secondary"} disabled={isLoading} onClick={() => setPreference('quality')}>Quality</Button>
                       </div>
                   </div>
                 </div>

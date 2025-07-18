@@ -1,4 +1,3 @@
-
 // src/ai/flows/generate-image.ts
 'use server';
 /**
@@ -23,6 +22,8 @@ const GenerateImageInputSchema = z.object({
   userId: z.string().describe('The ID of the user generating the image.'),
   userEmail: z.string().describe('The email of the user generating the image.'),
   numVariations: z.number().optional().default(1).describe('Number of image variations to generate.'),
+  quality: z.enum(['standard', 'hd']).optional().default('standard').describe('The quality of the generated image.'),
+  preference: z.enum(['speed', 'quality']).optional().default('speed').describe('The preference for generation speed vs quality.'),
 });
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
 
@@ -45,9 +46,13 @@ const generateImageFlow = ai.defineFlow(
   },
   async (input) => {
     
-    const fullPrompt = input.negativePrompt 
-      ? `${input.prompt}, avoid ${input.negativePrompt}`
-      : input.prompt;
+    let fullPrompt = input.prompt;
+    if (input.quality === 'hd') {
+        fullPrompt = `${fullPrompt}, 4k, HD, high resolution`;
+    }
+    if (input.negativePrompt) {
+        fullPrompt = `${fullPrompt}, avoid ${input.negativePrompt}`;
+    }
 
     const generateSingleImage = async () => {
         const promptPayload: (
