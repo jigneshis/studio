@@ -84,7 +84,7 @@ export default function HomePage() {
                      <div className="space-y-2">
                         <Progress value={100} className="w-full" />
                         <p className="text-sm font-medium text-muted-foreground">
-                            Expires on: September 15th
+                            Your unlimited access is valid through September 15th.
                         </p>
                     </div>
                 </div>
