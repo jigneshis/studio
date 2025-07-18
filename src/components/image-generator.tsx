@@ -25,7 +25,7 @@ export default function ImageGenerator() {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && user) {
+    if (file && user?.email) {
       setLoading(true);
       setError(null);
       setImageUrl(null);
@@ -34,7 +34,7 @@ export default function ImageGenerator() {
       reader.onloadend = async () => {
         try {
           const dataUri = reader.result as string;
-          const publicUrl = await uploadImage(dataUri, 'chat-attachments');
+          const publicUrl = await uploadImage(dataUri, 'chat-attachments', user.email!);
           setUploadedImageUrl(publicUrl);
         } catch (e: any) {
           const errorMessage = e.message || 'Failed to upload image.';
@@ -68,7 +68,7 @@ export default function ImageGenerator() {
       return;
     }
     
-    if (!user) {
+    if (!user || !user.email) {
       toast({
         title: 'Authentication Error',
         description: 'You must be logged in to generate images.',
@@ -82,7 +82,12 @@ export default function ImageGenerator() {
     setImageUrl(null);
 
     try {
-      const result = await generateImage({ prompt, photoUrl: uploadedImageUrl || undefined, userId: user.uid });
+      const result = await generateImage({ 
+        prompt, 
+        photoUrl: uploadedImageUrl || undefined, 
+        userId: user.uid,
+        userEmail: user.email
+      });
       if (result.imageUrl) {
         setImageUrl(result.imageUrl);
       } else {
