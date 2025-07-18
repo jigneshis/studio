@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Lock, Upload } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
@@ -202,12 +202,11 @@ export default function HomePage() {
 
 
             <div className="space-y-3">
-                <h3 className="font-semibold">Choose a model</h3>
+                <h3 className="font-semibold">Image quality</h3>
                 <Tabs defaultValue="hd" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="standard" disabled={isLoading}>Standard</TabsTrigger>
                         <TabsTrigger value="hd" disabled={isLoading}>HD</TabsTrigger>
-                        <TabsTrigger value="genius" disabled className="flex items-center gap-2">Genius <Lock className="w-3 h-3"/></TabsTrigger>
                     </TabsList>
                 </Tabs>
             </div>
