@@ -93,6 +93,7 @@ export default function HomePage() {
 
     setIsUploading(true);
     setUploadedImageUrl(null);
+    setGeneratedImages([]);
 
     try {
       const reader = new FileReader();
