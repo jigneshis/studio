@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useState, useEffect, ReactNode } from 'react';
-import { onAuthStateChanged, User, signInWithPopup, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, User, signInWithPopup, signOut as firebaseSignOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, googleProvider, githubProvider } from '@/lib/firebase';
 import type {Auth, GithubAuthProvider, GoogleAuthProvider, UserCredential} from 'firebase/auth';
 
@@ -13,6 +13,8 @@ interface AuthContextType {
   signUpWithEmail: (email:string, password:string) => Promise<UserCredential>;
   signInWithEmail: (email:string, password:string) => Promise<UserCredential>;
   signOut: () => Promise<void>;
+  updateUserProfile: (profile: { displayName?: string | null; photoURL?: string | null; }) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,7 +38,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signInWithEmail = (email:string, password:string) => signInWithEmailAndPassword(auth, email, password);
   const signOut = () => firebaseSignOut(auth);
   
-  const value = { user, loading, signInWithGoogle, signInWithGitHub, signUpWithEmail, signInWithEmail, signOut };
+  const updateUserProfile = async (profile: { displayName?: string | null; photoURL?: string | null; }) => {
+      if (auth.currentUser) {
+          await updateProfile(auth.currentUser, profile);
+          // Manually update the user state because onAuthStateChanged might not fire immediately
+          setUser(prevUser => prevUser ? { ...prevUser, ...profile } : null);
+      } else {
+          throw new Error("No user is signed in to update the profile.");
+      }
+  };
+
+  const sendPasswordReset = (email: string) => sendPasswordResetEmail(auth, email);
+
+  const value = { user, loading, signInWithGoogle, signInWithGitHub, signUpWithEmail, signInWithEmail, signOut, updateUserProfile, sendPasswordReset };
 
   return (
     <AuthContext.Provider value={value}>

@@ -35,7 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Sparkles, Crown } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Sparkles, Crown, User as UserIcon } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
@@ -234,6 +234,12 @@ export default function HomePage() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/account">
+                  <UserIcon className="mr-2 h-4 w-4" />
+                  <span>Account</span>
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/library">
                   <Library className="mr-2 h-4 w-4" />
