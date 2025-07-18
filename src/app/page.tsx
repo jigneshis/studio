@@ -1,7 +1,7 @@
 // src/app/page.tsx
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { generateImage } from '@/ai/flows/generate-image';
@@ -12,6 +12,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -19,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Lock, RefreshCcw } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Lock } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +50,7 @@ export default function HomePage() {
   const [selectedStyle, setSelectedStyle] = useState(styles[0]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUsageDialogOpen, setIsUsageDialogOpen] = useState(false);
 
 
   const handleGenerate = async () => {
@@ -86,6 +96,9 @@ export default function HomePage() {
           <h1 className="text-xl font-bold text-foreground">Renderri</h1>
         </div>
         <div className="flex items-center gap-4">
+           <Button variant="outline" size="sm" onClick={() => setIsUsageDialogOpen(true)}>
+              Unlimited Credits!
+            </Button>
            <Button
             variant="ghost"
             size="icon"
@@ -207,6 +220,29 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      <Dialog open={isUsageDialogOpen} onOpenChange={setIsUsageDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Account Usage</DialogTitle>
+            <DialogDescription>
+              Here's an overview of your current plan and usage.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm font-medium">
+                <span>Remaining Credits</span>
+                <Badge variant="secondary">Unlimited</Badge>
+              </div>
+              <Progress value={100} aria-label="Unlimited credits" />
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Your unlimited access is valid through September 15th.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
