@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, Moon, Sun, Library, Crown } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Crown, Star } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 
@@ -73,16 +73,20 @@ export default function HomePage() {
                         Your current plan and usage details.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 text-center">
                     <div className="space-y-2">
+                         <div className="flex justify-center items-center text-2xl font-bold text-primary">
+                            <Star className="w-6 h-6 mr-2 text-yellow-400 fill-yellow-400"/>
+                            Unlimited Credits
+                        </div>
+                        <p className="text-sm text-muted-foreground">Your creative potential has no limits with us.</p>
+                    </div>
+                     <div className="space-y-2">
                         <Progress value={100} className="w-full" />
-                        <p className="text-center text-sm font-medium text-muted-foreground">
-                            REMAINING UNLIMITED TOKENS / UNLIMITED TOKENS
+                        <p className="text-sm font-medium text-muted-foreground">
+                            Expires on: September 15th
                         </p>
                     </div>
-                    <p className="text-center text-sm text-muted-foreground">
-                        Plan Expiry Date - 15 Sept
-                    </p>
                 </div>
             </DialogContent>
           </Dialog>
