@@ -22,7 +22,7 @@ function getMimeType(dataUri: string): string {
 export async function uploadImage(
   dataUri: string,
   bucket: string,
-  userEmail: string,
+  userEmail: string
 ): Promise<string> {
   const buffer = dataUriToBuffer(dataUri);
   const mimeType = getMimeType(dataUri);
@@ -43,4 +43,28 @@ export async function uploadImage(
   } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
   return publicUrl;
+}
+
+export async function listUserImages(
+  bucket: string,
+  userEmail: string
+): Promise<string[]> {
+  const { data, error } = await supabase.storage.from(bucket).list(userEmail, {
+    limit: 100,
+    offset: 0,
+    sortBy: { column: 'created_at', order: 'desc' },
+  });
+
+  if (error) {
+    console.error(`Failed to list images from ${bucket}: ${error.message}`);
+    return [];
+  }
+
+  if (!data) {
+    return [];
+  }
+
+  const { data: { publicUrl: bucketPublicUrl } } = supabase.storage.from(bucket).getPublicUrl('');
+
+  return data.map(file => `${bucketPublicUrl}/${userEmail}/${file.name}`);
 }
