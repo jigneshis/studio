@@ -10,24 +10,25 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {uploadImage as uploadImageToSupabase} from '@/services/storage';
 
 const GenerateImageInputSchema = z.object({
   prompt: z.string().describe('The text prompt to generate an image from.'),
-  photoDataUri: z
+  photoUrl: z
     .string()
     .optional()
-    .describe(
-      "An optional photo to use as a reference, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
-    ),
+    .describe('An optional public URL of a photo to use as a reference.'),
 });
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
 
 const GenerateImageOutputSchema = z.object({
-  imageUrl: z.string().describe('The data URI of the generated image.'),
+  imageUrl: z.string().describe('The public URL of the generated image.'),
 });
 export type GenerateImageOutput = z.infer<typeof GenerateImageOutputSchema>;
 
-export async function generateImage(input: GenerateImageInput): Promise<GenerateImageOutput> {
+export async function generateImage(
+  input: GenerateImageInput
+): Promise<GenerateImageOutput> {
   return generateImageFlow(input);
 }
 
@@ -37,12 +38,14 @@ const generateImageFlow = ai.defineFlow(
     inputSchema: GenerateImageInputSchema,
     outputSchema: GenerateImageOutputSchema,
   },
-  async input => {
-    
-    const promptPayload: (string | {media: {url: string}})[] = [input.prompt];
-    
-    if (input.photoDataUri) {
-        promptPayload.unshift({media: {url: input.photoDataUri}});
+  async (input) => {
+    const promptPayload: (
+      | string
+      | {media: {url: string; contentType?: string}}
+    )[] = [input.prompt];
+
+    if (input.photoUrl) {
+      promptPayload.unshift({media: {url: input.photoUrl}});
     }
 
     const {media} = await ai.generate({
@@ -57,6 +60,8 @@ const generateImageFlow = ai.defineFlow(
       throw new Error('No image was generated.');
     }
 
-    return {imageUrl: media.url};
+    const publicUrl = await uploadImageToSupabase(media.url);
+
+    return {imageUrl: publicUrl};
   }
 );
