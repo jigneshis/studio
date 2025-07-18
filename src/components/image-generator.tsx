@@ -34,7 +34,7 @@ export default function ImageGenerator() {
       reader.onloadend = async () => {
         try {
           const dataUri = reader.result as string;
-          const publicUrl = await uploadImage(dataUri, 'chat-attachments', user.uid);
+          const publicUrl = await uploadImage(dataUri, 'chat-attachments');
           setUploadedImageUrl(publicUrl);
         } catch (e: any) {
           const errorMessage = e.message || 'Failed to upload image.';
@@ -49,6 +49,12 @@ export default function ImageGenerator() {
         }
       };
       reader.readAsDataURL(file);
+    } else if (!user) {
+        toast({
+            title: 'Authentication Error',
+            description: 'You must be logged in to upload an image.',
+            variant: 'destructive',
+        });
     }
   };
 

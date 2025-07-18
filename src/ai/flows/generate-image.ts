@@ -61,7 +61,7 @@ const generateImageFlow = ai.defineFlow(
       throw new Error('No image was generated.');
     }
 
-    const publicUrl = await uploadImageToSupabase(media.url, 'generated-files', input.userId);
+    const publicUrl = await uploadImageToSupabase(media.url, 'generated-files');
 
     return {imageUrl: publicUrl};
   }

@@ -22,13 +22,11 @@ function getMimeType(dataUri: string): string {
 export async function uploadImage(
   dataUri: string,
   bucket: string,
-  userId: string,
 ): Promise<string> {
   const buffer = dataUriToBuffer(dataUri);
   const mimeType = getMimeType(dataUri);
   const extension = mimeType.split('/')[1] || 'png';
-  const fileName = `${uuidv4()}.${extension}`;
-  const filePath = `${userId}/${fileName}`;
+  const filePath = `${uuidv4()}.${extension}`;
 
   const {error} = await supabase.storage.from(bucket).upload(filePath, buffer, {
     contentType: mimeType,
