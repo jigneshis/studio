@@ -5,10 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { generateImage } from '@/ai/flows/generate-image';
-import { magicEdit } from '@/ai/flows/magic-edit-flow';
-import { removeBackground } from '@/ai/flows/remove-background-flow';
 import { uploadImage as uploadImageToSupabase } from '@/services/storage';
-import { applyMaskToImage } from '@/lib/image-utils';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -37,15 +34,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Wand2, Sparkles, Trash2, Brush, ChevronDown } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Sparkles, Crown } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
-import { ImageEditorCanvas, type ImageEditorCanvasRef } from '@/components/image-editor-canvas';
-import { Slider } from '@/components/ui/slider';
 
 
 const creativePrompts = [
@@ -89,34 +82,15 @@ export default function HomePage() {
   const { setTheme, theme } = useTheme();
   const { toast } = useToast();
   
-  const [activeTab, setActiveTab] = useState('generate');
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [numVariations, setNumVariations] = useState(4);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUsageDialogOpen, setIsUsageDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [brushRadius, setBrushRadius] = useState(20);
-  const editorCanvasRef = useRef<ImageEditorCanvasRef>(null);
-
-  const resetState = () => {
-    setGeneratedImages([]);
-    setUploadedImageUrl(null);
-    setProcessedImageUrl(null);
-    if (editorCanvasRef.current) {
-        editorCanvasRef.current.clear();
-    }
-  }
-
-  useEffect(() => {
-    resetState();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -125,16 +99,16 @@ export default function HomePage() {
     }
 
     setIsUploading(true);
-    resetState();
+    setGeneratedImages([]);
+    setUploadedImageUrl(null);
 
     try {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onloadend = async () => {
         const base64String = reader.result as string;
-        // No need to upload to supabase first, just use the data URI
         setUploadedImageUrl(base64String);
-        toast({ title: "Image Ready", description: "Your image is ready to be used." });
+        toast({ title: "Image Ready", description: "Your image is ready to be used as a reference." });
       };
     } catch (error) {
       console.error('File read failed:', error);
@@ -155,10 +129,8 @@ export default function HomePage() {
       }
       setIsGenerating(true);
       setGeneratedImages([]);
-      setProcessedImageUrl(null);
 
       try {
-          // If there's an uploaded image, we need its public URL first
           let publicPhotoUrl: string | undefined = undefined;
           if (uploadedImageUrl) {
             publicPhotoUrl = await uploadImageToSupabase(uploadedImageUrl, 'chat-attachments', user.email);
@@ -181,74 +153,6 @@ export default function HomePage() {
           setIsGenerating(false);
       }
   };
-
-  const handleMagicEdit = async () => {
-    if (!prompt.trim()) {
-        toast({ title: "Prompt is empty", description: "Please enter what you want to edit.", variant: "destructive" });
-        return;
-    }
-    if (!user?.email || !uploadedImageUrl || !editorCanvasRef.current) {
-        toast({ title: "Setup error", description: "User or image not ready for editing.", variant: "destructive" });
-        return;
-    }
-
-    setIsGenerating(true);
-    setProcessedImageUrl(null);
-
-    try {
-        const maskDataUri = await editorCanvasRef.current.getMaskAsDataURI();
-        if (!maskDataUri) {
-             toast({ title: "Mask is empty", description: "Please draw on the image to select an area to edit.", variant: "destructive" });
-             setIsGenerating(false);
-             return;
-        }
-
-        const result = await magicEdit({
-            prompt: prompt,
-            photoDataUri: uploadedImageUrl,
-            maskDataUri: maskDataUri,
-            userId: user.uid,
-            userEmail: user.email,
-        });
-
-        setProcessedImageUrl(result.imageUrl);
-        setUploadedImageUrl(result.imageUrl); // Replace original with edited one for further edits
-        editorCanvasRef.current.clear();
-    } catch (error) {
-        console.error("Magic Edit failed:", error);
-        toast({ title: "Magic Edit Failed", description: "Could not edit the image. Please try again.", variant: "destructive" });
-    } finally {
-        setIsGenerating(false);
-    }
-  };
-
-  const handleBackgroundRemoval = async () => {
-     if (!user?.email || !uploadedImageUrl) {
-        toast({ title: "Setup error", description: "An image must be uploaded first.", variant: "destructive" });
-        return;
-    }
-
-    setIsGenerating(true);
-    setProcessedImageUrl(null);
-
-    try {
-        const { maskDataUri } = await removeBackground({ photoDataUri: uploadedImageUrl });
-        
-        const finalImageUri = await applyMaskToImage(uploadedImageUrl, maskDataUri);
-        
-        const publicUrl = await uploadImageToSupabase(finalImageUri, 'generated-files', user.email);
-        setProcessedImageUrl(publicUrl);
-        setUploadedImageUrl(publicUrl);
-        toast({ title: "Background Removed!", description: "The background has been successfully removed." });
-
-    } catch (error) {
-        console.error("Background removal failed:", error);
-        toast({ title: "Background Removal Failed", description: "Could not remove the background. Please try again.", variant: "destructive" });
-    } finally {
-        setIsGenerating(false);
-    }
-  }
-
 
   const handleDownload = async (url: string) => {
     try {
@@ -287,13 +191,6 @@ export default function HomePage() {
   }
 
   const isLoading = isGenerating || isUploading;
-  const currentImage = processedImageUrl || uploadedImageUrl;
-
-  const modeOptions = {
-    generate: { label: "Generate", icon: <Sparkles className="mr-2 h-4 w-4" /> },
-    edit: { label: "Magic Edit", icon: <Wand2 className="mr-2 h-4 w-4" /> },
-    background: { label: "BG Remove", icon: <Trash2 className="mr-2 h-4 w-4" /> }
-  };
 
   return (
     <div className="flex h-screen w-full flex-col bg-background text-foreground">
@@ -304,6 +201,7 @@ export default function HomePage() {
         </div>
         <div className="flex items-center gap-4">
            <Button variant="outline" size="sm" onClick={() => setIsUsageDialogOpen(true)}>
+              <Crown className="mr-2 h-4 w-4 text-yellow-500" />
               Unlimited Credits!
             </Button>
            <Button
@@ -352,57 +250,23 @@ export default function HomePage() {
         <div className="grid h-full grid-cols-1 md:grid-cols-3">
           {/* Left Panel: Controls */}
           <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
-            
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-full justify-between">
-                <div className="flex items-center">
-                  {modeOptions[activeTab as keyof typeof modeOptions].icon}
-                  {modeOptions[activeTab as keyof typeof modeOptions].label}
-                </div>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-              <DropdownMenuRadioGroup value={activeTab} onValueChange={setActiveTab}>
-                <DropdownMenuRadioItem value="generate">
-                  <Sparkles className="mr-2 h-4 w-4" /> Generate
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="edit">
-                  <Wand2 className="mr-2 h-4 w-4" /> Magic Edit
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="background">
-                   <Trash2 className="mr-2 h-4 w-4" /> BG Remove
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-            
-            {/* Common controls */}
-            {activeTab !== 'background' && (
               <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                      <h2 className="text-lg font-semibold">{activeTab === 'edit' ? 'Describe your edit' : 'Create with a prompt'}</h2>
-                      {activeTab === 'generate' && (
-                          <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              Surprise Me
-                          </Button>
-                      )}
+                      <h2 className="text-lg font-semibold">Create with a prompt</h2>
+                      <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Surprise Me
+                      </Button>
                   </div>
                   <Textarea 
-                      placeholder={activeTab === 'edit' ? "e.g., 'add sunglasses'" : "Describe what you'd like to generate"}
+                      placeholder={"Describe what you'd like to generate"}
                       className="min-h-[100px] bg-card"
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       disabled={isLoading}
                   />
               </div>
-            )}
 
-            {activeTab === 'generate' && (
-              <>
                 <div className="space-y-2">
                     <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
                     <Textarea 
@@ -435,7 +299,7 @@ export default function HomePage() {
                   
                   <div className="flex flex-col gap-2">
                       <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
-                          {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                           Generate ({numVariations} {numVariations > 1 ? 'variations' : 'variation'})
                       </Button>
                       <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
@@ -460,72 +324,6 @@ export default function HomePage() {
                       </div>
                   </div>
                 </div>
-              </>
-            )}
-
-            {activeTab === 'edit' && (
-              <div className="flex flex-col gap-6">
-                {!currentImage && (
-                    <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
-                         <Wand2 className="h-12 w-12 text-muted-foreground mb-4" />
-                         <h3 className="font-semibold mb-2">Start with an image</h3>
-                         <p className="text-sm text-muted-foreground mb-4">Upload an image to start using Magic Edit.</p>
-                         <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
-                            Upload Image
-                        </Button>
-                    </Card>
-                )}
-                {currentImage && (
-                    <>
-                       <div className="space-y-3">
-                            <h3 className="font-semibold">Brush size</h3>
-                            <div className="flex items-center gap-4">
-                              <Brush className="h-5 w-5" />
-                              <Slider
-                                value={[brushRadius]}
-                                onValueChange={(value) => setBrushRadius(value[0])}
-                                max={50}
-                                min={5}
-                                step={1}
-                                disabled={isLoading}
-                              />
-                              <span className="text-sm w-8 text-right">{brushRadius}</span>
-                            </div>
-                        </div>
-                        <Button onClick={() => editorCanvasRef.current?.clear()} variant="outline" disabled={isLoading}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Clear Mask
-                        </Button>
-                        <Button onClick={handleMagicEdit} disabled={isLoading || !prompt.trim()}>
-                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                            Generate Edit
-                        </Button>
-                    </>
-                )}
-              </div>
-            )}
-            {activeTab === 'background' && (
-              <div className="flex flex-col gap-6">
-                 {!currentImage && (
-                    <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
-                         <Trash2 className="h-12 w-12 text-muted-foreground mb-4" />
-                         <h3 className="font-semibold mb-2">Start with an image</h3>
-                         <p className="text-sm text-muted-foreground mb-4">Upload an image to remove its background.</p>
-                         <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
-                            Upload Image
-                        </Button>
-                    </Card>
-                )}
-                {currentImage && (
-                  <Button onClick={handleBackgroundRemoval} disabled={isLoading}>
-                      {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                      Remove Background
-                  </Button>
-                )}
-              </div>
-            )}
 
             {/* Hidden file input */}
             <input
@@ -544,47 +342,19 @@ export default function HomePage() {
                 {isLoading && (
                     <Card className="w-full aspect-square bg-card overflow-hidden flex flex-col items-center justify-center gap-4 text-muted-foreground">
                         <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                        <p>{isGenerating ? 'Processing...' : 'Uploading...'}</p>
+                        <p>{isGenerating ? 'Generating...' : 'Uploading...'}</p>
                     </Card>
                 )}
-                {!isLoading && activeTab === 'generate' && generatedImages.length > 0 && (
+                {!isLoading && generatedImages.length > 0 && (
                     <ImageVariations images={generatedImages} onDownload={handleDownload} />
                 )}
-                {!isLoading && activeTab === 'generate' && currentImage && generatedImages.length === 0 && (
+                {!isLoading && uploadedImageUrl && generatedImages.length === 0 && (
                      <Card className="w-full bg-card overflow-hidden">
-                       <Image src={currentImage} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                       <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
                     </Card>
                 )}
                 
-                {!isLoading && (activeTab === 'edit' || activeTab === 'background') && currentImage && (
-                  <>
-                    {activeTab === 'edit' ? (
-                       <ImageEditorCanvas
-                          ref={editorCanvasRef}
-                          imageUrl={currentImage}
-                          brushRadius={brushRadius}
-                      />
-                    ) : (
-                       <Card className="w-full bg-card overflow-hidden">
-                         <Image src={currentImage} alt="Processed image" width={1024} height={1024} className="w-full h-full object-contain"/>
-                      </Card>
-                    )}
-                    {processedImageUrl && (
-                      <div className="flex items-center justify-center gap-2 mt-4">
-                        <Button variant="default" onClick={() => handleDownload(processedImageUrl)}>
-                          <Download className="mr-2 h-4 w-4" /> Download
-                        </Button>
-                        <Button variant="secondary" asChild>
-                           <a href={processedImageUrl} target="_blank" rel="noopener noreferrer">
-                              <Eye className="mr-2 h-4 w-4" /> View Full Image
-                           </a>
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {!isLoading && generatedImages.length === 0 && !currentImage && (
+                {!isLoading && generatedImages.length === 0 && !uploadedImageUrl && (
                     <Card className="w-full aspect-square bg-card overflow-hidden flex items-center justify-center">
                        <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
                     </Card>
