@@ -12,7 +12,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -36,8 +35,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Wand2, Sparkles, Trash2, Brush } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Wand2, Sparkles, Trash2, Brush, ChevronDown } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
@@ -240,6 +241,12 @@ export default function HomePage() {
 
   const isLoading = isGenerating || isUploading;
 
+  const modeOptions = {
+    generate: { label: "Generate", icon: <Sparkles className="mr-2 h-4 w-4" /> },
+    edit: { label: "Magic Edit", icon: <Wand2 className="mr-2 h-4 w-4" /> },
+    background: { label: "BG Remove", icon: <Trash2 className="mr-2 h-4 w-4" /> }
+  };
+
   return (
     <div className="flex h-screen w-full flex-col bg-background text-foreground">
       <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
@@ -294,192 +301,213 @@ export default function HomePage() {
       </header>
       
       <main className="flex-1 overflow-auto">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-            <div className="grid h-full grid-cols-1 md:grid-cols-3">
-              {/* Left Panel: Controls */}
-              <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="generate"><Sparkles className="mr-2 h-4 w-4"/>Generate</TabsTrigger>
-                    <TabsTrigger value="edit"><Wand2 className="mr-2 h-4 w-4"/>Magic Edit</TabsTrigger>
-                    <TabsTrigger value="background" disabled>BG Remove</TabsTrigger>
-                </TabsList>
-                
-                {/* Always visible controls */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-lg font-semibold">{activeTab === 'edit' ? 'Describe your edit' : 'Create with a prompt'}</h2>
-                        {activeTab === 'generate' && (
-                            <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
-                                <Sparkles className="mr-2 h-4 w-4" />
-                                Surprise Me
-                            </Button>
-                        )}
-                    </div>
-                    <Textarea 
-                        placeholder={activeTab === 'edit' ? "e.g., 'add sunglasses'" : "Describe what you'd like to generate"}
-                        className="min-h-[100px] bg-card"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        disabled={isLoading}
-                    />
+        <div className="grid h-full grid-cols-1 md:grid-cols-3">
+          {/* Left Panel: Controls */}
+          <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
+            
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <div className="flex items-center">
+                  {modeOptions[activeTab as keyof typeof modeOptions].icon}
+                  {modeOptions[activeTab as keyof typeof modeOptions].label}
                 </div>
-                {activeTab !== 'edit' && (
-                  <div className="space-y-2">
-                      <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
-                      <Textarea 
-                          placeholder="e.g., blurry, extra limbs, deformed"
-                          className="min-h-[70px] bg-card"
-                          value={negativePrompt}
-                          onChange={(e) => setNegativePrompt(e.target.value)}
-                          disabled={isLoading}
-                      />
-                  </div>
-                )}
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
+              <DropdownMenuRadioGroup value={activeTab} onValueChange={setActiveTab}>
+                <DropdownMenuRadioItem value="generate">
+                  <Sparkles className="mr-2 h-4 w-4" /> Generate
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="edit">
+                  <Wand2 className="mr-2 h-4 w-4" /> Magic Edit
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="background" disabled>
+                   <Trash2 className="mr-2 h-4 w-4" /> BG Remove
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-
-                <TabsContent value="generate" className="flex flex-col gap-6">
-                    <div className="space-y-3">
-                      <h3 className="font-semibold">Number of variations</h3>
-                       <Select
-                          value={String(numVariations)}
-                          onValueChange={(value) => setNumVariations(Number(value))}
-                          disabled={isLoading}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select number of variations" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">1 Variation</SelectItem>
-                            <SelectItem value="2">2 Variations</SelectItem>
-                            <SelectItem value="3">3 Variations</SelectItem>
-                            <SelectItem value="4">4 Variations</SelectItem>
-                          </SelectContent>
-                        </Select>
-                    </div>
-                    
-                    <div className="flex flex-col gap-2">
-                        <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
-                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Generate ({numVariations} {numVariations > 1 ? 'variations' : 'variation'})
+            
+            {/* Always visible controls */}
+            <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-semibold">{activeTab === 'edit' ? 'Describe your edit' : 'Create with a prompt'}</h2>
+                    {activeTab === 'generate' && (
+                        <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Surprise Me
                         </Button>
-                        <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
-                            Upload Reference Image
-                        </Button>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h3 className="font-semibold">Image quality</h3>
-                        <Tabs defaultValue="hd" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="standard" disabled={isLoading}>Standard</TabsTrigger>
-                                <TabsTrigger value="hd" disabled={isLoading}>HD</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                    </div>
-                    
-                    <div className="space-y-3">
-                        <h3 className="font-semibold">Preference</h3>
-                        <Tabs defaultValue="speed" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="speed" disabled={isLoading}>Speed</TabsTrigger>
-                                <TabsTrigger value="quality" disabled={isLoading}>Quality</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                    </div>
-                </TabsContent>
-                <TabsContent value="edit" className="flex flex-col gap-6">
-                    {!uploadedImageUrl && (
-                        <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
-                             <Wand2 className="h-12 w-12 text-muted-foreground mb-4" />
-                             <h3 className="font-semibold mb-2">Start with an image</h3>
-                             <p className="text-sm text-muted-foreground mb-4">Upload an image to start using Magic Edit.</p>
-                             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                                {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
-                                Upload Image
-                            </Button>
-                        </Card>
                     )}
-                    {uploadedImageUrl && (
-                        <>
-                           <div className="space-y-3">
-                                <h3 className="font-semibold">Brush size</h3>
-                                <div className="flex items-center gap-4">
-                                  <Brush className="h-5 w-5" />
-                                  <Slider
-                                    value={[brushRadius]}
-                                    onValueChange={(value) => setBrushRadius(value[0])}
-                                    max={50}
-                                    min={5}
-                                    step={1}
-                                    disabled={isLoading}
-                                  />
-                                  <span className="text-sm w-8 text-right">{brushRadius}</span>
-                                </div>
-                            </div>
-                            <Button onClick={() => editorCanvasRef.current?.clear()} variant="outline" disabled={isLoading}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Clear Mask
-                            </Button>
-                            <Button onClick={handleMagicEdit} disabled={isLoading || !prompt.trim()}>
-                                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                Generate Edit
-                            </Button>
-                        </>
-                    )}
-                </TabsContent>
-                <TabsContent value="background">
-                    <Card className="h-96 flex items-center justify-center text-muted-foreground">
-                        Background Removal coming soon!
-                    </Card>
-                </TabsContent>
-
-                {/* Hidden file input */}
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/png, image/jpeg, image/webp"
+                </div>
+                <Textarea 
+                    placeholder={activeTab === 'edit' ? "e.g., 'add sunglasses'" : "Describe what you'd like to generate"}
+                    className="min-h-[100px] bg-card"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
                     disabled={isLoading}
                 />
+            </div>
+            {activeTab !== 'edit' && (
+              <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
+                  <Textarea 
+                      placeholder="e.g., blurry, extra limbs, deformed"
+                      className="min-h-[70px] bg-card"
+                      value={negativePrompt}
+                      onChange={(e) => setNegativePrompt(e.target.value)}
+                      disabled={isLoading}
+                  />
               </div>
+            )}
 
-              {/* Right Panel: Image Display */}
-              <div className="md:col-span-2 flex flex-col items-center justify-center p-6 bg-muted/20 overflow-y-auto">
-                <div className="w-full max-w-2xl">
-                    {isLoading && (
-                        <Card className="w-full aspect-square bg-card overflow-hidden flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                            <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                            <p>{isGenerating ? 'Generating...' : 'Uploading...'}</p>
-                        </Card>
-                    )}
-                    {!isLoading && activeTab === 'generate' && generatedImages.length > 0 && (
-                        <ImageVariations images={generatedImages} onDownload={handleDownload} />
-                    )}
-                    {!isLoading && activeTab === 'generate' && uploadedImageUrl && generatedImages.length === 0 && (
-                        <Card className="w-full bg-card overflow-hidden">
-                           <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
-                        </Card>
-                    )}
-                    
-                    {!isLoading && activeTab === 'edit' && uploadedImageUrl && (
-                        <ImageEditorCanvas
-                            ref={editorCanvasRef}
-                            imageUrl={editedImageUrl || uploadedImageUrl}
-                            brushRadius={brushRadius}
-                        />
-                    )}
 
-                    {!isLoading && generatedImages.length === 0 && !uploadedImageUrl && (
-                        <Card className="w-full aspect-square bg-card overflow-hidden flex items-center justify-center">
-                           <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
-                        </Card>
-                    )}
+            {activeTab === 'generate' && (
+              <div className="flex flex-col gap-6">
+                <div className="space-y-3">
+                  <h3 className="font-semibold">Number of variations</h3>
+                   <Select
+                      value={String(numVariations)}
+                      onValueChange={(value) => setNumVariations(Number(value))}
+                      disabled={isLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select number of variations" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Variation</SelectItem>
+                        <SelectItem value="2">2 Variations</SelectItem>
+                        <SelectItem value="3">3 Variations</SelectItem>
+                        <SelectItem value="4">4 Variations</SelectItem>
+                      </SelectContent>
+                    </Select>
+                </div>
+                
+                <div className="flex flex-col gap-2">
+                    <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
+                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Generate ({numVariations} {numVariations > 1 ? 'variations' : 'variation'})
+                    </Button>
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                        Upload Reference Image
+                    </Button>
+                </div>
+
+                <div className="space-y-3">
+                    <h3 className="font-semibold">Image quality</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                        <Button variant={ "outline"} disabled={isLoading}>Standard</Button>
+                        <Button variant={ "secondary"} disabled={isLoading}>HD</Button>
+                    </div>
+                </div>
+                
+                <div className="space-y-3">
+                    <h3 className="font-semibold">Preference</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                       <Button variant={"secondary"} disabled={isLoading}>Speed</Button>
+                       <Button variant={"outline"} disabled={isLoading}>Quality</Button>
+                    </div>
                 </div>
               </div>
+            )}
+            {activeTab === 'edit' && (
+              <div className="flex flex-col gap-6">
+                {!uploadedImageUrl && (
+                    <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
+                         <Wand2 className="h-12 w-12 text-muted-foreground mb-4" />
+                         <h3 className="font-semibold mb-2">Start with an image</h3>
+                         <p className="text-sm text-muted-foreground mb-4">Upload an image to start using Magic Edit.</p>
+                         <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                            Upload Image
+                        </Button>
+                    </Card>
+                )}
+                {uploadedImageUrl && (
+                    <>
+                       <div className="space-y-3">
+                            <h3 className="font-semibold">Brush size</h3>
+                            <div className="flex items-center gap-4">
+                              <Brush className="h-5 w-5" />
+                              <Slider
+                                value={[brushRadius]}
+                                onValueChange={(value) => setBrushRadius(value[0])}
+                                max={50}
+                                min={5}
+                                step={1}
+                                disabled={isLoading}
+                              />
+                              <span className="text-sm w-8 text-right">{brushRadius}</span>
+                            </div>
+                        </div>
+                        <Button onClick={() => editorCanvasRef.current?.clear()} variant="outline" disabled={isLoading}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Clear Mask
+                        </Button>
+                        <Button onClick={handleMagicEdit} disabled={isLoading || !prompt.trim()}>
+                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                            Generate Edit
+                        </Button>
+                    </>
+                )}
+              </div>
+            )}
+            {activeTab === 'background' && (
+              <div className="flex flex-col gap-6">
+                <Card className="h-96 flex items-center justify-center text-muted-foreground">
+                    Background Removal coming soon!
+                </Card>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                accept="image/png, image/jpeg, image/webp"
+                disabled={isLoading}
+            />
+          </div>
+
+          {/* Right Panel: Image Display */}
+          <div className="md:col-span-2 flex flex-col items-center justify-center p-6 bg-muted/20 overflow-y-auto">
+            <div className="w-full max-w-2xl">
+                {isLoading && (
+                    <Card className="w-full aspect-square bg-card overflow-hidden flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                        <p>{isGenerating ? 'Generating...' : 'Uploading...'}</p>
+                    </Card>
+                )}
+                {!isLoading && activeTab === 'generate' && generatedImages.length > 0 && (
+                    <ImageVariations images={generatedImages} onDownload={handleDownload} />
+                )}
+                {!isLoading && activeTab === 'generate' && uploadedImageUrl && generatedImages.length === 0 && (
+                    <Card className="w-full bg-card overflow-hidden">
+                       <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                    </Card>
+                )}
+                
+                {!isLoading && activeTab === 'edit' && uploadedImageUrl && (
+                    <ImageEditorCanvas
+                        ref={editorCanvasRef}
+                        imageUrl={editedImageUrl || uploadedImageUrl}
+                        brushRadius={brushRadius}
+                    />
+                )}
+
+                {!isLoading && generatedImages.length === 0 && !uploadedImageUrl && (
+                    <Card className="w-full aspect-square bg-card overflow-hidden flex items-center justify-center">
+                       <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
+                    </Card>
+                )}
             </div>
-        </Tabs>
+          </div>
+        </div>
       </main>
 
       <Dialog open={isUsageDialogOpen} onOpenChange={setIsUsageDialogOpen}>
