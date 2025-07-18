@@ -1,20 +1,16 @@
+// src/app/page.tsx
 "use client";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { generateImage } from '@/ai/flows/generate-image';
 import { useAuth } from '@/hooks/use-auth';
-import ImageGenerator from '@/components/image-generator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,27 +19,58 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, Moon, Sun, Library, Crown, Star } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Lock, RefreshCcw } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
+import { useToast } from '@/hooks/use-toast';
+
+const styles = [
+    { name: 'Default', url: 'https://placehold.co/100x100.png', hint: 'default' },
+    { name: 'Panda', url: 'https://placehold.co/100x100.png', hint: 'panda' },
+    { name: 'Fantasy', url: 'https://placehold.co/100x100.png', hint: 'fantasy' },
+    { name: 'Sci-Fi', url: 'https://placehold.co/100x100.png', hint: 'sci-fi' },
+    { name: 'Anime', url: 'https://placehold.co/100x100.png', hint: 'anime' },
+];
 
 export default function HomePage() {
-  const { user, loading, signOut } = useAuth();
-  const router = useRouter();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { setTheme, theme } = useTheme();
+  const { toast } = useToast();
+  
+  const [prompt, setPrompt] = useState('');
+  const [selectedStyle, setSelectedStyle] = useState(styles[0]);
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    const hasInvite = typeof window !== 'undefined' ? localStorage.getItem('hasInvite') : null;
-    if (!loading && !hasInvite) {
-      router.push('/invite');
-    } else if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
 
-  if (loading || !user) {
+  const handleGenerate = async () => {
+      if (!prompt.trim()) {
+          toast({ title: "Prompt is empty", description: "Please enter a prompt.", variant: "destructive" });
+          return;
+      }
+      if (!user?.email) {
+          toast({ title: "Not logged in", description: "You need to be logged in to generate images.", variant: "destructive" });
+          return;
+      }
+      setIsGenerating(true);
+      setGeneratedImage(null);
+      try {
+          const result = await generateImage({
+              prompt: `${prompt}, in the style of ${selectedStyle.name}`,
+              userId: user.uid,
+              userEmail: user.email,
+          });
+          setGeneratedImage(result.imageUrl);
+      } catch (error) {
+          console.error(error);
+          toast({ title: "Generation Failed", description: "Could not generate image. Please try again.", variant: "destructive" });
+      } finally {
+          setIsGenerating(false);
+      }
+  };
+
+
+  if (authLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -52,46 +79,14 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col bg-background">
-      <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+    <div className="flex h-screen w-full flex-col bg-background text-foreground">
+      <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
         <div className="flex items-center gap-2">
           <RenderriLogo className="h-8 w-8 text-primary" />
           <h1 className="text-xl font-bold text-foreground">Renderri</h1>
         </div>
         <div className="flex items-center gap-4">
-          <Dialog>
-            <DialogTrigger asChild>
-                <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                    <Crown className="mr-2 h-4 w-4 text-yellow-500" />
-                    Unlimited Credits!
-                </Badge>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Usage</DialogTitle>
-                    <DialogDescription>
-                        Your current plan and usage details.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4 text-center">
-                    <div className="space-y-2">
-                         <div className="flex justify-center items-center text-2xl font-bold text-primary">
-                            <Star className="w-6 h-6 mr-2 text-yellow-400 fill-yellow-400"/>
-                            Unlimited Credits
-                        </div>
-                        <p className="text-sm text-muted-foreground">Your creative potential has no limits with us.</p>
-                    </div>
-                     <div className="space-y-2">
-                        <Progress value={100} className="w-full" />
-                        <p className="text-sm font-medium text-muted-foreground">
-                            Your unlimited access is valid through September 15th.
-                        </p>
-                    </div>
-                </div>
-            </DialogContent>
-          </Dialog>
-
-          <Button
+           <Button
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -132,8 +127,85 @@ export default function HomePage() {
           </DropdownMenu>
         </div>
       </header>
-      <main className="flex-1 overflow-hidden">
-        <ImageGenerator />
+      
+      <main className="flex-1 overflow-auto">
+        <div className="grid h-full grid-cols-1 md:grid-cols-3">
+          {/* Left Panel: Controls */}
+          <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
+            <div className="space-y-2">
+                <h2 className="text-lg font-semibold">Create an image from text prompt</h2>
+                <Textarea 
+                    placeholder="Describe what you'd like to generate"
+                    className="min-h-[100px] bg-card"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    disabled={isGenerating}
+                />
+            </div>
+
+            <Button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()}>
+                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Submit
+            </Button>
+
+            <div className="space-y-3">
+                <h3 className="font-semibold">Choose a model</h3>
+                <Tabs defaultValue="hd" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="standard">Standard</TabsTrigger>
+                        <TabsTrigger value="hd">HD</TabsTrigger>
+                        <TabsTrigger value="genius" disabled className="flex items-center gap-2">Genius <Lock className="w-3 h-3"/></TabsTrigger>
+                    </TabsList>
+                </Tabs>
+            </div>
+            
+            <div className="space-y-3">
+                <h3 className="font-semibold">Preference</h3>
+                <Tabs defaultValue="speed" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="speed">Speed</TabsTrigger>
+                        <TabsTrigger value="quality">Quality</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+            </div>
+
+            <div className="space-y-3">
+                <h3 className="font-semibold">Choose a style</h3>
+                <div className="grid grid-cols-5 gap-2">
+                    {styles.map(style => (
+                        <Card 
+                            key={style.name} 
+                            onClick={() => setSelectedStyle(style)}
+                            className={`cursor-pointer overflow-hidden ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${selectedStyle.name === style.name ? 'ring-2 ring-primary' : ''}`}
+                        >
+                            <Image src={style.url} alt={style.name} width={100} height={100} className="aspect-square object-cover" data-ai-hint={style.hint}/>
+                        </Card>
+                    ))}
+                </div>
+                 <Button variant="link" className="p-0 text-primary">View all +100 styles</Button>
+            </div>
+          </div>
+
+          {/* Right Panel: Image Display */}
+          <div className="md:col-span-2 flex items-center justify-center p-6 bg-muted/20">
+            <Card className="w-full max-w-2xl aspect-square bg-card overflow-hidden">
+                {isGenerating && (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                        <p>Generating your masterpiece...</p>
+                    </div>
+                )}
+                {!isGenerating && generatedImage && (
+                    <Image src={generatedImage} alt="Generated image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                )}
+                 {!isGenerating && !generatedImage && (
+                    <div className="w-full h-full flex items-center justify-center">
+                       <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
+                    </div>
+                )}
+            </Card>
+          </div>
+        </div>
       </main>
     </div>
   );
