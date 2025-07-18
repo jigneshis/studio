@@ -11,6 +11,9 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Log the firebaseConfig to ensure environment variables are loaded
+console.log("Firebase Config:", firebaseConfig);
+
 let app;
 
 // This checks if the keys are placeholders. If they are, it will show a console error.
@@ -18,16 +21,29 @@ let app;
 if (
   !firebaseConfig.apiKey ||
   firebaseConfig.apiKey.startsWith('your-') ||
-  !firebaseConfig.authDomain
+  !firebaseConfig.authDomain ||
+  firebaseConfig.authDomain.startsWith('your-') ||
+  !firebaseConfig.projectId ||
+  firebaseConfig.projectId.startsWith('your-')
 ) {
-  console.error('Firebase config is not set. Please add your credentials to the src/.env file.');
-  // Initialize with a dummy config to prevent app crash but allow auth state to resolve
-  app = getApps().length ? getApp() : initializeApp({ apiKey: 'dummy-key', authDomain: 'dummy.firebaseapp.com' });
+  console.error("Firebase environment variables are not properly set. Please check your .env.local file or Netlify environment variables.");
+  // Use a dummy config to prevent the app from crashing during development
+  app = initializeApp({
+    apiKey: "dummy-api-key",
+    authDomain: "dummy-auth-domain",
+    projectId: "dummy-project-id",
+    storageBucket: "dummy-storage-bucket",
+    messagingSenderId: "dummy-messaging-sender-id",
+    appId: "dummy-app-id",
+  });
 } else {
-  // Initialize Firebase with the actual config
-  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  // Initialize Firebase only if no app has been initialized yet
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
 }
-
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
