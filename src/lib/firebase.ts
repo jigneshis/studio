@@ -23,10 +23,10 @@ const env = {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-if (Object.values(env).every(Boolean)) {
+if (Object.values(env).every(Boolean) && env.apiKey && !env.apiKey.startsWith('your-')) {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 } else {
-    console.error('Firebase config is not set. Please add your credentials to the .env file.');
+    console.error('Firebase config is not set. Please add your credentials to the src/.env file.');
     // Create a dummy app to avoid crashing the app
     app = getApps().length ? getApp() : initializeApp({ apiKey: 'dummy-key' });
 }
