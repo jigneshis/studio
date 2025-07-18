@@ -6,7 +6,7 @@ import { generateImage } from '@/ai/flows/generate-image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ImageIcon, Loader2, Upload, X } from 'lucide-react';
+import { Loader2, Upload, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from './ui/skeleton';
 import { RenderriLogo } from './icons';
@@ -74,7 +74,7 @@ export default function ImageGenerator() {
           
           <div className="flex flex-col gap-8 sticky top-24">
             <div className="flex flex-col items-start gap-2">
-                <h1 className="text-3xl font-bold tracking-tight">Image Generation Studio</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Enhance, Edit, Update, Generate Images</h1>
                 <p className="text-muted-foreground">Describe the image you want to create, or upload one to start.</p>
             </div>
             <Card>
@@ -122,7 +122,7 @@ export default function ImageGenerator() {
               )}
               {error && !loading && (
                 <div className="flex aspect-square w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-destructive/50 bg-destructive/10 text-destructive">
-                    <ImageIcon className="h-16 w-16" />
+                    <RenderriLogo className="h-16 w-16 text-destructive" />
                     <p className="mt-4 text-center font-semibold">{error}</p>
                 </div>
               )}
@@ -163,7 +163,7 @@ export default function ImageGenerator() {
               )}
               {!loading && !error && !imageUrl && !uploadedImage && (
                 <div className="flex aspect-square w-full flex-col items-center justify-center rounded-lg border-2 border-dashed bg-card">
-                  <ImageIcon className="h-16 w-16 text-muted-foreground" />
+                  <RenderriLogo className="h-16 w-16 text-muted-foreground" />
                   <p className="mt-4 text-muted-foreground">Your generated image will appear here</p>
                 </div>
               )}
