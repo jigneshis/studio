@@ -1,11 +1,30 @@
+// src/components/icons.tsx
+"use client";
+
 import type { HTMLAttributes } from 'react';
 import type { SVGProps } from "react";
+import { useTheme } from 'next-themes';
+import { useState, useEffect } from 'react';
 
 export function RenderriLogo(props: HTMLAttributes<HTMLImageElement>) {
+  const { theme, resolvedTheme } = useTheme();
+  const [logoSrc, setLogoSrc] = useState("https://qovhpsmldsalfnlcalnv.supabase.co/storage/v1/object/public/main//white-mode.png"); // Default to one logo to avoid flash
+
+  useEffect(() => {
+    // resolvedTheme is used to handle the 'system' theme preference
+    const currentTheme = resolvedTheme || theme;
+    if (currentTheme === 'dark') {
+      setLogoSrc("https://qovhpsmldsalfnlcalnv.supabase.co/storage/v1/object/public/main//dark-mode.png");
+    } else {
+      setLogoSrc("https://qovhpsmldsalfnlcalnv.supabase.co/storage/v1/object/public/main//white-mode.png");
+    }
+  }, [theme, resolvedTheme]);
+
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="https://qovhpsmldsalfnlcalnv.supabase.co/storage/v1/object/public/main//Logo.png"
+      src={logoSrc}
       alt="Renderri Logo"
       {...props}
     />
