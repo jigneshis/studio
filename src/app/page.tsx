@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Upload } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
@@ -102,6 +102,29 @@ export default function HomePage() {
           setIsGenerating(false);
       }
   };
+
+  const handleDownload = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `renderri-image-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the image. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   if (authLoading || !user) {
     return (
@@ -223,7 +246,7 @@ export default function HomePage() {
           </div>
 
           {/* Right Panel: Image Display */}
-          <div className="md:col-span-2 flex items-center justify-center p-6 bg-muted/20">
+          <div className="md:col-span-2 flex flex-col items-center justify-center p-6 bg-muted/20">
             <Card className="w-full max-w-2xl aspect-square bg-card overflow-hidden">
                 {(isGenerating || isUploading) && (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
@@ -243,6 +266,20 @@ export default function HomePage() {
                     </div>
                 )}
             </Card>
+            {!isLoading && generatedImage && (
+              <div className="flex items-center gap-4 mt-4">
+                <Button variant="outline" onClick={() => handleDownload(generatedImage)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+                <Button variant="secondary" asChild>
+                  <a href={generatedImage} target="_blank" rel="noopener noreferrer">
+                    <Eye className="mr-2 h-4 w-4" />
+                    View Full Image
+                  </a>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </main>
