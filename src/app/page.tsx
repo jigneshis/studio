@@ -1,10 +1,11 @@
 // src/app/page.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { generateImage } from '@/ai/flows/generate-image';
+import { uploadImage as uploadImageToSupabase } from '@/services/storage';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Lock } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Lock, Upload } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
@@ -49,9 +50,38 @@ export default function HomePage() {
   const [prompt, setPrompt] = useState('');
   const [selectedStyle, setSelectedStyle] = useState(styles[0]);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isUsageDialogOpen, setIsUsageDialogOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user?.email) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadedImageUrl(null);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        const publicUrl = await uploadImageToSupabase(base64String, 'chat-attachments', user.email!);
+        setUploadedImageUrl(publicUrl);
+        setGeneratedImage(null);
+        toast({ title: "Image Uploaded", description: "Your image is ready to be used as a reference." });
+      };
+    } catch (error) {
+      console.error('Upload failed:', error);
+      toast({ title: "Upload Failed", description: "Could not upload your image. Please try again.", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleGenerate = async () => {
       if (!prompt.trim()) {
@@ -67,10 +97,12 @@ export default function HomePage() {
       try {
           const result = await generateImage({
               prompt: `${prompt}, in the style of ${selectedStyle.name}`,
+              photoUrl: uploadedImageUrl ?? undefined,
               userId: user.uid,
               userEmail: user.email,
           });
           setGeneratedImage(result.imageUrl);
+          setUploadedImageUrl(null);
       } catch (error) {
           console.error(error);
           toast({ title: "Generation Failed", description: "Could not generate image. Please try again.", variant: "destructive" });
@@ -79,7 +111,6 @@ export default function HomePage() {
       }
   };
 
-
   if (authLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -87,6 +118,8 @@ export default function HomePage() {
       </div>
     );
   }
+
+  const isLoading = isGenerating || isUploading;
 
   return (
     <div className="flex h-screen w-full flex-col bg-background text-foreground">
@@ -152,21 +185,36 @@ export default function HomePage() {
                     className="min-h-[100px] bg-card"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    disabled={isGenerating}
+                    disabled={isLoading}
+                />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+                <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
+                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Submit
+                </Button>
+                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                    Upload Image
+                </Button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/png, image/jpeg, image/webp"
+                    disabled={isLoading}
                 />
             </div>
 
-            <Button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()}>
-                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Submit
-            </Button>
 
             <div className="space-y-3">
                 <h3 className="font-semibold">Choose a model</h3>
                 <Tabs defaultValue="hd" className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="standard">Standard</TabsTrigger>
-                        <TabsTrigger value="hd">HD</TabsTrigger>
+                        <TabsTrigger value="standard" disabled={isLoading}>Standard</TabsTrigger>
+                        <TabsTrigger value="hd" disabled={isLoading}>HD</TabsTrigger>
                         <TabsTrigger value="genius" disabled className="flex items-center gap-2">Genius <Lock className="w-3 h-3"/></TabsTrigger>
                     </TabsList>
                 </Tabs>
@@ -176,8 +224,8 @@ export default function HomePage() {
                 <h3 className="font-semibold">Preference</h3>
                 <Tabs defaultValue="speed" className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="speed">Speed</TabsTrigger>
-                        <TabsTrigger value="quality">Quality</TabsTrigger>
+                        <TabsTrigger value="speed" disabled={isLoading}>Speed</TabsTrigger>
+                        <TabsTrigger value="quality" disabled={isLoading}>Quality</TabsTrigger>
                     </TabsList>
                 </Tabs>
             </div>
@@ -188,30 +236,33 @@ export default function HomePage() {
                     {styles.map(style => (
                         <Card 
                             key={style.name} 
-                            onClick={() => setSelectedStyle(style)}
-                            className={`cursor-pointer overflow-hidden ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${selectedStyle.name === style.name ? 'ring-2 ring-primary' : ''}`}
+                            onClick={() => !isLoading && setSelectedStyle(style)}
+                            className={`cursor-pointer overflow-hidden ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${selectedStyle.name === style.name ? 'ring-2 ring-primary' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <Image src={style.url} alt={style.name} width={100} height={100} className="aspect-square object-cover" data-ai-hint={style.hint}/>
                         </Card>
                     ))}
                 </div>
-                 <Button variant="link" className="p-0 text-primary">View all +100 styles</Button>
+                 <Button variant="link" className="p-0 text-primary" disabled={isLoading}>View all +100 styles</Button>
             </div>
           </div>
 
           {/* Right Panel: Image Display */}
           <div className="md:col-span-2 flex items-center justify-center p-6 bg-muted/20">
             <Card className="w-full max-w-2xl aspect-square bg-card overflow-hidden">
-                {isGenerating && (
+                {(isGenerating || isUploading) && (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
                         <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                        <p>Generating your masterpiece...</p>
+                        <p>{isGenerating ? 'Generating your masterpiece...' : 'Uploading your image...'}</p>
                     </div>
                 )}
-                {!isGenerating && generatedImage && (
+                {!isLoading && generatedImage && (
                     <Image src={generatedImage} alt="Generated image" width={1024} height={1024} className="w-full h-full object-contain"/>
                 )}
-                 {!isGenerating && !generatedImage && (
+                {!isLoading && uploadedImageUrl && !generatedImage && (
+                    <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                )}
+                 {!isLoading && !generatedImage && !uploadedImageUrl && (
                     <div className="w-full h-full flex items-center justify-center">
                        <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
                     </div>
