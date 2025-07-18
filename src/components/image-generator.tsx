@@ -6,9 +6,10 @@ import { generateImage } from '@/ai/flows/generate-image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Bot, ImageIcon, Loader2 } from 'lucide-react';
+import { ImageIcon, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from './ui/skeleton';
+import { RenderriLogo } from './icons';
 
 export default function ImageGenerator() {
   const [prompt, setPrompt] = useState('');
@@ -56,7 +57,7 @@ export default function ImageGenerator() {
       <div className="w-full space-y-8">
         <div className="flex flex-col items-center text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Bot className="h-8 w-8 text-primary" />
+                <RenderriLogo className="h-8 w-8 text-primary" />
             </div>
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Image Generation Studio</h2>
             <p className="mt-2 text-muted-foreground">Describe the image you want to create in the box below.</p>
