@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Image from 'next/image';
 import { generateImage } from '@/ai/flows/generate-image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { ImageIcon, Loader2 } from 'lucide-react';
+import { ImageIcon, Loader2, Upload, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from './ui/skeleton';
 import { RenderriLogo } from './icons';
@@ -16,7 +16,22 @@ export default function ImageGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage(reader.result as string);
+        setImageUrl(null); 
+        setError(null);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleGenerateImage = async () => {
     if (!prompt.trim()) {
@@ -33,7 +48,7 @@ export default function ImageGenerator() {
     setImageUrl(null);
 
     try {
-      const result = await generateImage({ prompt });
+      const result = await generateImage({ prompt, photoDataUri: uploadedImage || undefined });
       if (result.imageUrl) {
         setImageUrl(result.imageUrl);
       } else {
@@ -60,29 +75,41 @@ export default function ImageGenerator() {
                 <RenderriLogo className="h-8 w-8 text-primary" />
             </div>
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Image Generation Studio</h2>
-            <p className="mt-2 text-muted-foreground">Describe the image you want to create in the box below.</p>
+            <p className="mt-2 text-muted-foreground">Describe the image you want to create, or upload one to start.</p>
         </div>
         
         <Card className="shadow-lg">
           <CardContent className="p-6">
             <div className="grid gap-4">
               <Textarea
-                placeholder="e.g., A futuristic city skyline at sunset, with flying cars and neon lights, in a photorealistic style."
+                placeholder={uploadedImage ? "e.g., Change the background to a sunny beach." : "e.g., A futuristic city skyline at sunset, with flying cars and neon lights..."}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 className="min-h-[100px] resize-none p-4"
                 disabled={loading}
               />
-              <Button onClick={handleGenerateImage} disabled={loading} size="lg">
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Image'
-                )}
-              </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    accept="image/*"
+                />
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline" disabled={loading}>
+                    <Upload className="mr-2" /> Upload Image
+                </Button>
+                <Button onClick={handleGenerateImage} disabled={loading} size="lg">
+                    {loading ? (
+                    <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Generating...
+                    </>
+                    ) : (
+                    'Generate Image'
+                    )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -113,7 +140,28 @@ export default function ImageGenerator() {
                 </div>
             </Card>
           )}
-          {!loading && !error && !imageUrl && (
+          {!loading && !error && !imageUrl && uploadedImage && (
+            <Card className="overflow-hidden group relative">
+                <div className="aspect-square relative w-full">
+                    <Image
+                        src={uploadedImage}
+                        alt="Uploaded preview"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    />
+                     <Button 
+                        variant="destructive" 
+                        size="icon" 
+                        className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setUploadedImage(null)}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+            </Card>
+          )}
+          {!loading && !error && !imageUrl && !uploadedImage && (
             <div className="flex aspect-square w-full flex-col items-center justify-center rounded-lg border-2 border-dashed bg-card">
               <ImageIcon className="h-16 w-16 text-muted-foreground" />
               <p className="mt-4 text-muted-foreground">Your generated image will appear here</p>
