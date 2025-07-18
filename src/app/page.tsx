@@ -11,8 +11,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -30,10 +30,46 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Wand2, Sparkles } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
+
+const creativePrompts = [
+  "A majestic lion wearing a crown, sitting on a throne in a futuristic city.",
+  "An enchanted forest where the trees have glowing leaves and the rivers flow with liquid starlight.",
+  "A steampunk dragon with intricate gears and brass plating, breathing fire made of clockwork.",
+  "A serene underwater city inhabited by mermaids, with buildings made of coral and kelp.",
+  "A retro-futuristic diner on Mars, with robot waiters and alien customers.",
+  "A knight in shining armor riding a giant, fluffy Corgi into battle.",
+  "A floating island held up by giant, glowing crystals, with waterfalls cascading into the clouds below.",
+  "A cyberpunk alleyway at night, with neon signs reflecting in the puddles on the street.",
+];
+
+function ImageVariations({ images, onDownload }: { images: string[]; onDownload: (url: string) => void; }) {
+  if (images.length === 0) return null;
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {images.map((img, index) => (
+        <Card key={index} className="group relative overflow-hidden">
+          <Image src={img} alt={`Generated variation ${index + 1}`} width={512} height={512} className="w-full h-full object-contain transition-transform group-hover:scale-105" />
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button variant="outline" size="icon" onClick={() => onDownload(img)}>
+              <Download className="h-5 w-5" />
+              <span className="sr-only">Download</span>
+            </Button>
+            <Button variant="outline" size="icon" asChild>
+              <a href={img} target="_blank" rel="noopener noreferrer">
+                <Eye className="h-5 w-5" />
+              </a>
+            </Button>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 
 export default function HomePage() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -41,7 +77,8 @@ export default function HomePage() {
   const { toast } = useToast();
   
   const [prompt, setPrompt] = useState('');
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -64,7 +101,7 @@ export default function HomePage() {
         const base64String = reader.result as string;
         const publicUrl = await uploadImageToSupabase(base64String, 'chat-attachments', user.email!);
         setUploadedImageUrl(publicUrl);
-        setGeneratedImage(null);
+        setGeneratedImages([]);
         toast({ title: "Image Uploaded", description: "Your image is ready to be used as a reference." });
       };
     } catch (error) {
@@ -85,15 +122,17 @@ export default function HomePage() {
           return;
       }
       setIsGenerating(true);
-      setGeneratedImage(null);
+      setGeneratedImages([]);
       try {
           const result = await generateImage({
               prompt: prompt,
+              negativePrompt: negativePrompt,
               photoUrl: uploadedImageUrl ?? undefined,
               userId: user.uid,
               userEmail: user.email,
+              numVariations: 4
           });
-          setGeneratedImage(result.imageUrl);
+          setGeneratedImages(result.imageUrls);
           setUploadedImageUrl(null);
       } catch (error) {
           console.error(error);
@@ -124,6 +163,11 @@ export default function HomePage() {
       });
     }
   };
+
+  const handleSurpriseMe = () => {
+    const randomPrompt = creativePrompts[Math.floor(Math.random() * creativePrompts.length)];
+    setPrompt(randomPrompt);
+  }
 
 
   if (authLoading || !user) {
@@ -190,98 +234,123 @@ export default function HomePage() {
       </header>
       
       <main className="flex-1 overflow-auto">
-        <div className="grid h-full grid-cols-1 md:grid-cols-3">
-          {/* Left Panel: Controls */}
-          <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
-            <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Create an image from text prompt</h2>
-                <Textarea 
-                    placeholder="Describe what you'd like to generate"
-                    className="min-h-[100px] bg-card"
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    disabled={isLoading}
-                />
-            </div>
-            
-            <div className="flex flex-col gap-2">
-                <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
-                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Submit
-                </Button>
-                 <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
-                    Upload Image
-                </Button>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/png, image/jpeg, image/webp"
-                    disabled={isLoading}
-                />
-            </div>
+        <Tabs defaultValue="generate" className="h-full">
+            <div className="grid h-full grid-cols-1 md:grid-cols-3">
+              {/* Left Panel: Controls */}
+              <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="generate"><Sparkles className="mr-2 h-4 w-4"/>Generate</TabsTrigger>
+                    <TabsTrigger value="edit" disabled><Wand2 className="mr-2 h-4 w-4"/>Magic Edit</TabsTrigger>
+                    <TabsTrigger value="background" disabled>BG Remove</TabsTrigger>
+                </TabsList>
 
-
-            <div className="space-y-3">
-                <h3 className="font-semibold">Image quality</h3>
-                <Tabs defaultValue="hd" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="standard" disabled={isLoading}>Standard</TabsTrigger>
-                        <TabsTrigger value="hd" disabled={isLoading}>HD</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-            </div>
-            
-            <div className="space-y-3">
-                <h3 className="font-semibold">Preference</h3>
-                <Tabs defaultValue="speed" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="speed" disabled={isLoading}>Speed</TabsTrigger>
-                        <TabsTrigger value="quality" disabled={isLoading}>Quality</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-            </div>
-          </div>
-
-          {/* Right Panel: Image Display */}
-          <div className="md:col-span-2 flex flex-col items-center justify-center p-6 bg-muted/20">
-            <Card className="w-full max-w-2xl aspect-square bg-card overflow-hidden">
-                {(isGenerating || isUploading) && (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                        <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                        <p>{isGenerating ? 'Generating your masterpiece...' : 'Uploading your image...'}</p>
+                <TabsContent value="generate" className="flex flex-col gap-6">
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-lg font-semibold">Create with a prompt</h2>
+                            <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                Surprise Me
+                            </Button>
+                        </div>
+                        <Textarea 
+                            placeholder="Describe what you'd like to generate"
+                            className="min-h-[100px] bg-card"
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            disabled={isLoading}
+                        />
                     </div>
-                )}
-                {!isLoading && generatedImage && (
-                    <Image src={generatedImage} alt="Generated image" width={1024} height={1024} className="w-full h-full object-contain"/>
-                )}
-                {!isLoading && uploadedImageUrl && !generatedImage && (
-                    <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
-                )}
-                 {!isLoading && !generatedImage && !uploadedImageUrl && (
-                    <div className="w-full h-full flex items-center justify-center">
-                       <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
+
+                    <div className="space-y-2">
+                        <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
+                        <Textarea 
+                            placeholder="e.g., blurry, extra limbs, deformed"
+                            className="min-h-[70px] bg-card"
+                            value={negativePrompt}
+                            onChange={(e) => setNegativePrompt(e.target.value)}
+                            disabled={isLoading}
+                        />
                     </div>
-                )}
-            </Card>
-            {!isLoading && generatedImage && (
-              <div className="flex items-center gap-4 mt-4">
-                <Button variant="outline" onClick={() => handleDownload(generatedImage)}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
-                <Button variant="secondary" asChild>
-                  <a href={generatedImage} target="_blank" rel="noopener noreferrer">
-                    <Eye className="mr-2 h-4 w-4" />
-                    View Full Image
-                  </a>
-                </Button>
+                    
+                    <div className="flex flex-col gap-2">
+                        <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
+                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Generate (4 variations)
+                        </Button>
+                        <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                            Upload Reference Image
+                        </Button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            className="hidden"
+                            accept="image/png, image/jpeg, image/webp"
+                            disabled={isLoading}
+                        />
+                    </div>
+
+
+                    <div className="space-y-3">
+                        <h3 className="font-semibold">Image quality</h3>
+                        <Tabs defaultValue="hd" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="standard" disabled={isLoading}>Standard</TabsTrigger>
+                                <TabsTrigger value="hd" disabled={isLoading}>HD</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <h3 className="font-semibold">Preference</h3>
+                        <Tabs defaultValue="speed" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="speed" disabled={isLoading}>Speed</TabsTrigger>
+                                <TabsTrigger value="quality" disabled={isLoading}>Quality</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                </TabsContent>
+                <TabsContent value="edit">
+                    <Card className="h-96 flex items-center justify-center text-muted-foreground">
+                        Magic Edit coming soon!
+                    </Card>
+                </TabsContent>
+                <TabsContent value="background">
+                    <Card className="h-96 flex items-center justify-center text-muted-foreground">
+                        Background Removal coming soon!
+                    </Card>
+                </TabsContent>
               </div>
-            )}
-          </div>
-        </div>
+
+              {/* Right Panel: Image Display */}
+              <div className="md:col-span-2 flex flex-col items-center justify-center p-6 bg-muted/20 overflow-y-auto">
+                <div className="w-full max-w-2xl">
+                    {(isGenerating || isUploading) && (
+                        <Card className="w-full aspect-square bg-card overflow-hidden flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                            <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                            <p>{isGenerating ? 'Generating your masterpiece...' : 'Uploading your image...'}</p>
+                        </Card>
+                    )}
+                    {!isLoading && generatedImages.length > 0 && (
+                        <ImageVariations images={generatedImages} onDownload={handleDownload} />
+                    )}
+                    {!isLoading && uploadedImageUrl && generatedImages.length === 0 && (
+                        <Card className="w-full bg-card overflow-hidden">
+                           <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
+                        </Card>
+                    )}
+                    {!isLoading && generatedImages.length === 0 && !uploadedImageUrl && (
+                        <Card className="w-full aspect-square bg-card overflow-hidden flex items-center justify-center">
+                           <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
+                        </Card>
+                    )}
+                </div>
+              </div>
+            </div>
+        </Tabs>
       </main>
 
       <Dialog open={isUsageDialogOpen} onOpenChange={setIsUsageDialogOpen}>
