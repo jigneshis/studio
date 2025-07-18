@@ -8,6 +8,14 @@ import ImageGenerator from '@/components/image-generator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -15,7 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, LogOut, Moon, Sun, Library, Crown } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 
@@ -49,6 +59,34 @@ export default function HomePage() {
           <h1 className="text-xl font-bold text-foreground">Renderri</h1>
         </div>
         <div className="flex items-center gap-4">
+          <Dialog>
+            <DialogTrigger asChild>
+                <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                    <Crown className="mr-2 h-4 w-4 text-yellow-500" />
+                    Unlimited Credits!
+                </Badge>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Usage</DialogTitle>
+                    <DialogDescription>
+                        Your current plan and usage details.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Progress value={100} className="w-full" />
+                        <p className="text-center text-sm font-medium text-muted-foreground">
+                            REMAINING UNLIMITED TOKENS / UNLIMITED TOKENS
+                        </p>
+                    </div>
+                    <p className="text-center text-sm text-muted-foreground">
+                        Plan Expiry Date - 15 Sept
+                    </p>
+                </div>
+            </DialogContent>
+          </Dialog>
+
           <Button
             variant="ghost"
             size="icon"
