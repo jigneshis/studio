@@ -18,6 +18,7 @@ const GenerateImageInputSchema = z.object({
     .string()
     .optional()
     .describe('An optional public URL of a photo to use as a reference.'),
+  userId: z.string().describe('The ID of the user generating the image.'),
 });
 export type GenerateImageInput = z.infer<typeof GenerateImageInputSchema>;
 
@@ -60,7 +61,7 @@ const generateImageFlow = ai.defineFlow(
       throw new Error('No image was generated.');
     }
 
-    const publicUrl = await uploadImageToSupabase(media.url);
+    const publicUrl = await uploadImageToSupabase(media.url, 'generated-files', input.userId);
 
     return {imageUrl: publicUrl};
   }

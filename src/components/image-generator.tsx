@@ -11,8 +11,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from './ui/skeleton';
 import { RenderriLogo } from './icons';
 import { uploadImage } from '@/services/storage';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function ImageGenerator() {
+  const { user } = useAuth();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export default function ImageGenerator() {
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (file && user) {
       setLoading(true);
       setError(null);
       setImageUrl(null);
@@ -32,7 +34,7 @@ export default function ImageGenerator() {
       reader.onloadend = async () => {
         try {
           const dataUri = reader.result as string;
-          const publicUrl = await uploadImage(dataUri);
+          const publicUrl = await uploadImage(dataUri, 'chat-attachments', user.uid);
           setUploadedImageUrl(publicUrl);
         } catch (e: any) {
           const errorMessage = e.message || 'Failed to upload image.';
@@ -59,13 +61,22 @@ export default function ImageGenerator() {
       });
       return;
     }
+    
+    if (!user) {
+      toast({
+        title: 'Authentication Error',
+        description: 'You must be logged in to generate images.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setImageUrl(null);
 
     try {
-      const result = await generateImage({ prompt, photoUrl: uploadedImageUrl || undefined });
+      const result = await generateImage({ prompt, photoUrl: uploadedImageUrl || undefined, userId: user.uid });
       if (result.imageUrl) {
         setImageUrl(result.imageUrl);
       } else {
