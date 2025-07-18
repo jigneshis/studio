@@ -17,11 +17,12 @@ let app;
 // The app will continue to run with a dummy config to avoid crashing.
 if (
   !firebaseConfig.apiKey ||
-  firebaseConfig.apiKey.startsWith('your-')
+  firebaseConfig.apiKey.startsWith('your-') ||
+  !firebaseConfig.authDomain
 ) {
   console.error('Firebase config is not set. Please add your credentials to the src/.env file.');
-  // Initialize with a dummy config to prevent app crash
-  app = getApps().length ? getApp() : initializeApp({ apiKey: 'dummy-key' });
+  // Initialize with a dummy config to prevent app crash but allow auth state to resolve
+  app = getApps().length ? getApp() : initializeApp({ apiKey: 'dummy-key', authDomain: 'dummy.firebaseapp.com' });
 } else {
   // Initialize Firebase with the actual config
   app = getApps().length ? getApp() : initializeApp(firebaseConfig);
