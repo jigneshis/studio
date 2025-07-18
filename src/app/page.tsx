@@ -1,17 +1,17 @@
-
 // src/app/page.tsx
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { generateImage } from '@/ai/flows/generate-image';
+import { magicEdit } from '@/ai/flows/magic-edit-flow';
 import { uploadImage as uploadImageToSupabase } from '@/services/storage';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
@@ -37,10 +37,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Wand2, Sparkles } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun, Library, Upload, Download, Eye, Wand2, Sparkles, Trash2, Brush } from 'lucide-react';
 import { RenderriLogo } from '@/components/icons';
 import { useTheme } from 'next-themes';
 import { useToast } from '@/hooks/use-toast';
+import { ImageEditorCanvas, type ImageEditorCanvasRef } from '@/components/image-editor-canvas';
+import { Slider } from '@/components/ui/slider';
+
 
 const creativePrompts = [
   "A majestic lion wearing a crown, sitting on a throne in a futuristic city.",
@@ -83,6 +86,7 @@ export default function HomePage() {
   const { setTheme, theme } = useTheme();
   const { toast } = useToast();
   
+  const [activeTab, setActiveTab] = useState('generate');
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [numVariations, setNumVariations] = useState(4);
@@ -92,6 +96,10 @@ export default function HomePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isUsageDialogOpen, setIsUsageDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [brushRadius, setBrushRadius] = useState(20);
+  const [editedImageUrl, setEditedImageUrl] = useState<string | null>(null);
+  const editorCanvasRef = useRef<ImageEditorCanvasRef>(null);
+
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -102,6 +110,7 @@ export default function HomePage() {
     setIsUploading(true);
     setUploadedImageUrl(null);
     setGeneratedImages([]);
+    setEditedImageUrl(null);
 
     try {
       const reader = new FileReader();
@@ -111,7 +120,7 @@ export default function HomePage() {
         const publicUrl = await uploadImageToSupabase(base64String, 'chat-attachments', user.email!);
         setUploadedImageUrl(publicUrl);
         setGeneratedImages([]);
-        toast({ title: "Image Uploaded", description: "Your image is ready to be used as a reference." });
+        toast({ title: "Image Uploaded", description: "Your image is ready to be used." });
       };
     } catch (error) {
       console.error('Upload failed:', error);
@@ -132,6 +141,8 @@ export default function HomePage() {
       }
       setIsGenerating(true);
       setGeneratedImages([]);
+      setEditedImageUrl(null);
+
       try {
           const result = await generateImage({
               prompt: prompt,
@@ -142,7 +153,7 @@ export default function HomePage() {
               numVariations: numVariations
           });
           setGeneratedImages(result.imageUrls);
-          setUploadedImageUrl(null);
+          if (uploadedImageUrl) setUploadedImageUrl(null);
       } catch (error) {
           console.error(error);
           toast({ title: "Generation Failed", description: "Could not generate image. Please try again.", variant: "destructive" });
@@ -150,6 +161,46 @@ export default function HomePage() {
           setIsGenerating(false);
       }
   };
+
+  const handleMagicEdit = async () => {
+    if (!prompt.trim()) {
+        toast({ title: "Prompt is empty", description: "Please enter what you want to edit.", variant: "destructive" });
+        return;
+    }
+    if (!user?.email || !uploadedImageUrl || !editorCanvasRef.current) {
+        toast({ title: "Setup error", description: "User or image not ready for editing.", variant: "destructive" });
+        return;
+    }
+
+    setIsGenerating(true);
+    setEditedImageUrl(null);
+
+    try {
+        const maskDataUri = await editorCanvasRef.current.getMaskAsDataURI();
+        if (!maskDataUri) {
+             toast({ title: "Mask is empty", description: "Please draw on the image to select an area to edit.", variant: "destructive" });
+             setIsGenerating(false);
+             return;
+        }
+
+        const result = await magicEdit({
+            prompt: prompt,
+            photoDataUri: uploadedImageUrl,
+            maskDataUri: maskDataUri,
+            userId: user.uid,
+            userEmail: user.email,
+        });
+
+        setEditedImageUrl(result.imageUrl);
+        setUploadedImageUrl(result.imageUrl); // Replace original with edited one for further edits
+        editorCanvasRef.current.clear();
+    } catch (error) {
+        console.error("Magic Edit failed:", error);
+        toast({ title: "Magic Edit Failed", description: "Could not edit the image. Please try again.", variant: "destructive" });
+    } finally {
+        setIsGenerating(false);
+    }
+};
 
   const handleDownload = async (url: string) => {
     try {
@@ -243,45 +294,50 @@ export default function HomePage() {
       </header>
       
       <main className="flex-1 overflow-auto">
-        <Tabs defaultValue="generate" className="h-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
             <div className="grid h-full grid-cols-1 md:grid-cols-3">
               {/* Left Panel: Controls */}
               <div className="md:col-span-1 flex flex-col gap-6 p-6 overflow-y-auto border-r border-border">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="generate"><Sparkles className="mr-2 h-4 w-4"/>Generate</TabsTrigger>
-                    <TabsTrigger value="edit" disabled><Wand2 className="mr-2 h-4 w-4"/>Magic Edit</TabsTrigger>
+                    <TabsTrigger value="edit"><Wand2 className="mr-2 h-4 w-4"/>Magic Edit</TabsTrigger>
                     <TabsTrigger value="background" disabled>BG Remove</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="generate" className="flex flex-col gap-6">
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-lg font-semibold">Create with a prompt</h2>
+                
+                {/* Always visible controls */}
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-lg font-semibold">{activeTab === 'edit' ? 'Describe your edit' : 'Create with a prompt'}</h2>
+                        {activeTab === 'generate' && (
                             <Button variant="ghost" size="sm" onClick={handleSurpriseMe} disabled={isLoading}>
                                 <Sparkles className="mr-2 h-4 w-4" />
                                 Surprise Me
                             </Button>
-                        </div>
-                        <Textarea 
-                            placeholder="Describe what you'd like to generate"
-                            className="min-h-[100px] bg-card"
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            disabled={isLoading}
-                        />
+                        )}
                     </div>
+                    <Textarea 
+                        placeholder={activeTab === 'edit' ? "e.g., 'add sunglasses'" : "Describe what you'd like to generate"}
+                        className="min-h-[100px] bg-card"
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        disabled={isLoading}
+                    />
+                </div>
+                {activeTab !== 'edit' && (
+                  <div className="space-y-2">
+                      <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
+                      <Textarea 
+                          placeholder="e.g., blurry, extra limbs, deformed"
+                          className="min-h-[70px] bg-card"
+                          value={negativePrompt}
+                          onChange={(e) => setNegativePrompt(e.target.value)}
+                          disabled={isLoading}
+                      />
+                  </div>
+                )}
 
-                    <div className="space-y-2">
-                        <h2 className="text-lg font-semibold">Negative Prompt (what to avoid)</h2>
-                        <Textarea 
-                            placeholder="e.g., blurry, extra limbs, deformed"
-                            className="min-h-[70px] bg-card"
-                            value={negativePrompt}
-                            onChange={(e) => setNegativePrompt(e.target.value)}
-                            disabled={isLoading}
-                        />
-                    </div>
 
+                <TabsContent value="generate" className="flex flex-col gap-6">
                     <div className="space-y-3">
                       <h3 className="font-semibold">Number of variations</h3>
                        <Select
@@ -310,14 +366,6 @@ export default function HomePage() {
                             {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
                             Upload Reference Image
                         </Button>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            className="hidden"
-                            accept="image/png, image/jpeg, image/webp"
-                            disabled={isLoading}
-                        />
                     </div>
 
                     <div className="space-y-3">
@@ -340,35 +388,89 @@ export default function HomePage() {
                         </Tabs>
                     </div>
                 </TabsContent>
-                <TabsContent value="edit">
-                    <Card className="h-96 flex items-center justify-center text-muted-foreground">
-                        Magic Edit coming soon!
-                    </Card>
+                <TabsContent value="edit" className="flex flex-col gap-6">
+                    {!uploadedImageUrl && (
+                        <Card className="h-60 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed">
+                             <Wand2 className="h-12 w-12 text-muted-foreground mb-4" />
+                             <h3 className="font-semibold mb-2">Start with an image</h3>
+                             <p className="text-sm text-muted-foreground mb-4">Upload an image to start using Magic Edit.</p>
+                             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                                {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                                Upload Image
+                            </Button>
+                        </Card>
+                    )}
+                    {uploadedImageUrl && (
+                        <>
+                           <div className="space-y-3">
+                                <h3 className="font-semibold">Brush size</h3>
+                                <div className="flex items-center gap-4">
+                                  <Brush className="h-5 w-5" />
+                                  <Slider
+                                    value={[brushRadius]}
+                                    onValueChange={(value) => setBrushRadius(value[0])}
+                                    max={50}
+                                    min={5}
+                                    step={1}
+                                    disabled={isLoading}
+                                  />
+                                  <span className="text-sm w-8 text-right">{brushRadius}</span>
+                                </div>
+                            </div>
+                            <Button onClick={() => editorCanvasRef.current?.clear()} variant="outline" disabled={isLoading}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Clear Mask
+                            </Button>
+                            <Button onClick={handleMagicEdit} disabled={isLoading || !prompt.trim()}>
+                                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                Generate Edit
+                            </Button>
+                        </>
+                    )}
                 </TabsContent>
                 <TabsContent value="background">
                     <Card className="h-96 flex items-center justify-center text-muted-foreground">
                         Background Removal coming soon!
                     </Card>
                 </TabsContent>
+
+                {/* Hidden file input */}
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/png, image/jpeg, image/webp"
+                    disabled={isLoading}
+                />
               </div>
 
               {/* Right Panel: Image Display */}
               <div className="md:col-span-2 flex flex-col items-center justify-center p-6 bg-muted/20 overflow-y-auto">
                 <div className="w-full max-w-2xl">
-                    {(isGenerating || isUploading) && (
+                    {isLoading && (
                         <Card className="w-full aspect-square bg-card overflow-hidden flex flex-col items-center justify-center gap-4 text-muted-foreground">
                             <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                            <p>{isGenerating ? 'Generating your masterpiece...' : 'Uploading your image...'}</p>
+                            <p>{isGenerating ? 'Generating...' : 'Uploading...'}</p>
                         </Card>
                     )}
-                    {!isLoading && generatedImages.length > 0 && (
+                    {!isLoading && activeTab === 'generate' && generatedImages.length > 0 && (
                         <ImageVariations images={generatedImages} onDownload={handleDownload} />
                     )}
-                    {!isLoading && uploadedImageUrl && generatedImages.length === 0 && (
+                    {!isLoading && activeTab === 'generate' && uploadedImageUrl && generatedImages.length === 0 && (
                         <Card className="w-full bg-card overflow-hidden">
                            <Image src={uploadedImageUrl} alt="Uploaded image" width={1024} height={1024} className="w-full h-full object-contain"/>
                         </Card>
                     )}
+                    
+                    {!isLoading && activeTab === 'edit' && uploadedImageUrl && (
+                        <ImageEditorCanvas
+                            ref={editorCanvasRef}
+                            imageUrl={editedImageUrl || uploadedImageUrl}
+                            brushRadius={brushRadius}
+                        />
+                    )}
+
                     {!isLoading && generatedImages.length === 0 && !uploadedImageUrl && (
                         <Card className="w-full aspect-square bg-card overflow-hidden flex items-center justify-center">
                            <RenderriLogo className="h-32 w-32 text-muted-foreground opacity-20"/>
