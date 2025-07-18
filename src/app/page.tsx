@@ -14,6 +14,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -78,6 +85,7 @@ export default function HomePage() {
   
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
+  const [numVariations, setNumVariations] = useState(4);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -131,7 +139,7 @@ export default function HomePage() {
               photoUrl: uploadedImageUrl ?? undefined,
               userId: user.uid,
               userEmail: user.email,
-              numVariations: 4
+              numVariations: numVariations
           });
           setGeneratedImages(result.imageUrls);
           setUploadedImageUrl(null);
@@ -273,11 +281,30 @@ export default function HomePage() {
                             disabled={isLoading}
                         />
                     </div>
+
+                    <div className="space-y-3">
+                      <h3 className="font-semibold">Number of variations</h3>
+                       <Select
+                          value={String(numVariations)}
+                          onValueChange={(value) => setNumVariations(Number(value))}
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select number of variations" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 Variation</SelectItem>
+                            <SelectItem value="2">2 Variations</SelectItem>
+                            <SelectItem value="3">3 Variations</SelectItem>
+                            <SelectItem value="4">4 Variations</SelectItem>
+                          </SelectContent>
+                        </Select>
+                    </div>
                     
                     <div className="flex flex-col gap-2">
                         <Button onClick={handleGenerate} disabled={isLoading || !prompt.trim()}>
                             {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            Generate (4 variations)
+                            Generate ({numVariations} {numVariations > 1 ? 'variations' : 'variation'})
                         </Button>
                         <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
                             {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
@@ -292,7 +319,6 @@ export default function HomePage() {
                             disabled={isLoading}
                         />
                     </div>
-
 
                     <div className="space-y-3">
                         <h3 className="font-semibold">Image quality</h3>
