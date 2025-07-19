@@ -24,13 +24,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if Firebase is configured before setting up the listener
-    // This is crucial for deployed environments where env vars might be missing.
+    // This check is crucial for deployed environments like Netlify.
+    // If the API key is a dummy key, it means Firebase isn't configured.
     if (!auth.app.options.apiKey || auth.app.options.apiKey === 'dummy-api-key') {
       console.error("Firebase is not configured. Auth will not work. Please set up your environment variables.");
-      setLoading(false);
-      setUser(null);
-      return;
+      setLoading(false); // Immediately stop loading
+      setUser(null); // Ensure user is null
+      return; // Stop execution
     }
     
     const unsubscribe = onAuthStateChanged(auth, (user) => {
