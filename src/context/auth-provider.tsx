@@ -25,10 +25,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Check if Firebase is configured before setting up the listener
-    if (!auth.app.options.apiKey || auth.app.options.apiKey === 'dummy-key') {
+    // This is crucial for deployed environments where env vars might be missing.
+    if (!auth.app.options.apiKey || auth.app.options.apiKey === 'dummy-api-key') {
+      console.error("Firebase is not configured. Auth will not work. Please set up your environment variables.");
       setLoading(false);
       setUser(null);
-      console.error("Firebase is not configured. Auth will not work.");
       return;
     }
     
